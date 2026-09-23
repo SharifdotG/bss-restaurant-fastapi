@@ -1,0 +1,29 @@
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# tooling
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# env
+.env
+.env.*
+!.env.example
+
+# fastapi cloud link
+.fastapicloud/
+
+# local stuff
+uploads/
+*.log
+.idea/
+.vscode/
+.claude/
+CLAUDE.md
