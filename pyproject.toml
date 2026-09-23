@@ -1,7 +1,12 @@
 [project]
 name = "bss-restaurant-fastapi"
 version = "0.1.0"
+description = "Restaurant management API built with FastAPI"
+readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "fastapi[standard]>=0.142.2",
 ]
+
+[tool.fastapi]
+entrypoint = "app.main:app"
