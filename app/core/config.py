@@ -3,6 +3,7 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BeforeValidator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+from sqlalchemy.engine import URL, make_url
 
 
 def _split_csv(value: Any) -> Any:
@@ -12,6 +13,21 @@ def _split_csv(value: Any) -> Any:
 
 
 CommaList = Annotated[list[str], NoDecode, BeforeValidator(_split_csv)]
+
+
+def to_asyncpg_url(raw: str) -> URL:
+    """Accept a plain libpq style URL (like the one Neon gives you) and make it asyncpg friendly."""
+    url = make_url(raw)
+    if url.drivername in {"postgres", "postgresql", "postgresql+psycopg", "postgresql+psycopg2"}:
+        url = url.set(drivername="postgresql+asyncpg")
+
+    query = dict(url.query)
+    sslmode = query.pop("sslmode", None)
+    # asyncpg doesn't know about channel_binding, it negotiates SCRAM on its own
+    query.pop("channel_binding", None)
+    if sslmode and "ssl" not in query:
+        query["ssl"] = sslmode
+    return url.set(query=query)
 
 
 class Settings(BaseSettings):
@@ -28,9 +44,22 @@ class Settings(BaseSettings):
     cors_origins: CommaList = []
     docs_enabled: bool = True
 
+    # pooled connection for the app, direct one for migrations (falls back to the pooled one)
+    database_url: str = "postgresql://postgres:postgres@localhost:5432/restaurant"
+    database_url_direct: str | None = None
+    db_echo: bool = False
+
     @property
     def is_production(self) -> bool:
         return self.environment == "production"
+
+    @property
+    def async_database_url(self) -> URL:
+        return to_asyncpg_url(self.database_url)
+
+    @property
+    def migration_database_url(self) -> URL:
+        return to_asyncpg_url(self.database_url_direct or self.database_url)
 
 
 @lru_cache
