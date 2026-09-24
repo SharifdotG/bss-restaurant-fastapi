@@ -2,12 +2,15 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app import __version__
 from app.api.v1.router import api_router
 from app.core.config import settings
 from app.core.database import engine
 from app.core.exceptions import register_exception_handlers
+from app.core.logging import setup_logging
+from app.core.middleware import REQUEST_ID_HEADER, request_id_middleware
 
 
 @asynccontextmanager
@@ -17,6 +20,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 
 def create_app() -> FastAPI:
+    setup_logging(settings.debug)
     docs_on = settings.docs_enabled
 
     app = FastAPI(
@@ -27,6 +31,17 @@ def create_app() -> FastAPI:
         redoc_url="/redoc" if docs_on else None,
         openapi_url="/openapi.json" if docs_on else None,
     )
+
+    app.middleware("http")(request_id_middleware)
+    if settings.cors_origins:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=settings.cors_origins,
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+            expose_headers=[REQUEST_ID_HEADER],
+        )
 
     register_exception_handlers(app)
     app.include_router(api_router, prefix=settings.api_prefix)
