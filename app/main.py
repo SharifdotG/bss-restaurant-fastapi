@@ -7,6 +7,7 @@ from app import __version__
 from app.api.v1.router import api_router
 from app.core.config import settings
 from app.core.database import engine
+from app.core.exceptions import register_exception_handlers
 
 
 @asynccontextmanager
@@ -27,6 +28,7 @@ def create_app() -> FastAPI:
         openapi_url="/openapi.json" if docs_on else None,
     )
 
+    register_exception_handlers(app)
     app.include_router(api_router, prefix=settings.api_prefix)
 
     @app.get("/", include_in_schema=False)
