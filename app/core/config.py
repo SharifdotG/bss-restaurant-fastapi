@@ -40,6 +40,7 @@ class Settings(BaseSettings):
     app_name: str = "BSS Restaurant API"
     environment: Literal["local", "staging", "production"] = "local"
     debug: bool = False
+    api_prefix: str = "/api/v1"
 
     cors_origins: CommaList = []
     docs_enabled: bool = True
