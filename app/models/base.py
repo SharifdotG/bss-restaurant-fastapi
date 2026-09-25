@@ -1,7 +1,8 @@
 from datetime import datetime
 from decimal import Decimal
+from enum import StrEnum
 
-from sqlalchemy import DateTime, MetaData, Numeric, func
+from sqlalchemy import DateTime, Enum, MetaData, Numeric, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 # predictable constraint names, otherwise alembic can't drop them reliably later
@@ -20,6 +21,17 @@ class Base(DeclarativeBase):
         datetime: DateTime(timezone=True),
         Decimal: Numeric(12, 2),
     }
+
+
+def str_enum(enum_cls: type[StrEnum], length: int = 20) -> Enum:
+    """Store a StrEnum as varchar + check constraint, easier to migrate than native pg enums."""
+    return Enum(
+        enum_cls,
+        native_enum=False,
+        create_constraint=True,
+        length=length,
+        values_callable=lambda members: [m.value for m in members],
+    )
 
 
 class TimestampMixin:
