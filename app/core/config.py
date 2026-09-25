@@ -1,7 +1,7 @@
 from functools import lru_cache
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, Self
 
-from pydantic import BeforeValidator
+from pydantic import BeforeValidator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 from sqlalchemy.engine import URL, make_url
 
@@ -30,6 +30,9 @@ def to_asyncpg_url(raw: str) -> URL:
     return url.set(query=query)
 
 
+DEV_SECRET = "dev-only-secret-do-not-use-in-production"
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -49,6 +52,18 @@ class Settings(BaseSettings):
     database_url: str = "postgresql://postgres:postgres@localhost:5432/restaurant"
     database_url_direct: str | None = None
     db_echo: bool = False
+
+    secret_key: str = DEV_SECRET
+    access_token_expire_minutes: int = 15
+    refresh_token_expire_days: int = 7
+
+    @model_validator(mode="after")
+    def _check_secret(self) -> Self:
+        if self.environment != "local" and (
+            self.secret_key == DEV_SECRET or len(self.secret_key) < 32
+        ):
+            raise ValueError("SECRET_KEY must be set to a random value of at least 32 characters")
+        return self
 
     @property
     def is_production(self) -> bool:
