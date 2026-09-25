@@ -3,7 +3,8 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 
-from app.api.deps import SessionDep
+from app.api.deps import CurrentUser, SessionDep
+from app.models import User
 from app.schemas.auth import LoginIn, OAuth2TokenOut, RefreshIn, TokenOut
 from app.schemas.user import UserOut
 from app.services import auth as auth_service
@@ -11,7 +12,7 @@ from app.services import auth as auth_service
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-def _token_response(user, tokens: auth_service.TokenPair) -> TokenOut:
+def _token_response(user: User, tokens: auth_service.TokenPair) -> TokenOut:
     return TokenOut(
         access_token=tokens.access_token,
         refresh_token=tokens.refresh_token,
@@ -53,3 +54,15 @@ async def refresh(body: RefreshIn, session: SessionDep, request: Request) -> Tok
 async def logout(body: RefreshIn, session: SessionDep) -> Response:
     await auth_service.logout(session, body.refresh_token)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/logout-all", status_code=status.HTTP_204_NO_CONTENT)
+async def logout_everywhere(user: CurrentUser, session: SessionDep) -> Response:
+    await auth_service.revoke_all_sessions(session, user.id)
+    await session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/me", response_model=UserOut)
+async def me(user: CurrentUser) -> User:
+    return user
