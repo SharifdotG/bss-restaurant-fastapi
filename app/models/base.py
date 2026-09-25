@@ -35,5 +35,8 @@ def str_enum(enum_cls: type[StrEnum], length: int = 20) -> Enum:
 
 
 class TimestampMixin:
+    # fetch server generated values with RETURNING, lazy refreshes don't work with asyncio
+    __mapper_args__ = {"eager_defaults": True}
+
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
