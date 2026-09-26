@@ -6,13 +6,16 @@ from pydantic.alias_generators import to_camel
 
 
 class CamelModel(BaseModel):
-    """Base for every request/response schema: camelCase over the wire, snake_case in python."""
+    """Base for every request/response schema: camelCase over the wire, snake_case in python.
+
+    FastAPI dumps responses by alias already. model_dump() stays snake_case on purpose so
+    it can be fed straight into the ORM models.
+    """
 
     model_config = ConfigDict(
         alias_generator=to_camel,
         validate_by_name=True,
         validate_by_alias=True,
-        serialize_by_alias=True,
         from_attributes=True,
     )
 
