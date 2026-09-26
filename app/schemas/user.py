@@ -16,7 +16,12 @@ def _check_password(value: str) -> str:
 
 Password = Annotated[str, Field(min_length=8, max_length=128), AfterValidator(_check_password)]
 Name = Annotated[str, Field(min_length=1, max_length=100)]
-Phone = Annotated[str, Field(pattern=r"^\+?[0-9][0-9 -]{5,18}$")]
+Phone = Annotated[
+    str,
+    Field(pattern=r"^\+?[0-9][0-9 -]{5,18}$"),
+    # stored without spaces and dashes so "017 1234-5678" and "01712345678" are the same number
+    AfterValidator(lambda v: re.sub(r"[ -]", "", v)),
+]
 
 
 class UserOut(CamelModel):

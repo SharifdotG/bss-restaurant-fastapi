@@ -56,7 +56,7 @@ async def authenticate(session: AsyncSession, email: str, password: str) -> User
     return user
 
 
-def _issue_tokens(
+def issue_tokens(
     session: AsyncSession,
     user: User,
     user_agent: str | None,
@@ -81,7 +81,7 @@ async def login(
 ) -> tuple[User, TokenPair]:
     user = await authenticate(session, email, password)
     user.last_login_at = datetime.now(UTC)
-    tokens = _issue_tokens(session, user, user_agent)
+    tokens = issue_tokens(session, user, user_agent)
     await session.commit()
     return user, tokens
 
@@ -113,7 +113,7 @@ async def refresh(
         raise _invalid_refresh()
 
     token.revoked_at = now
-    tokens = _issue_tokens(session, user, user_agent, family_id=token.family_id)
+    tokens = issue_tokens(session, user, user_agent, family_id=token.family_id)
     await session.commit()
     return user, tokens
 

@@ -6,8 +6,9 @@ from fastapi.security import OAuth2PasswordRequestForm
 from app.api.deps import CurrentUser, SessionDep
 from app.models import User
 from app.schemas.auth import LoginIn, OAuth2TokenOut, RefreshIn, TokenOut
-from app.schemas.user import UserOut
+from app.schemas.user import PasswordChange, ProfileUpdate, UserOut
 from app.services import auth as auth_service
+from app.services import users as user_service
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -66,3 +67,19 @@ async def logout_everywhere(user: CurrentUser, session: SessionDep) -> Response:
 @router.get("/me", response_model=UserOut)
 async def me(user: CurrentUser) -> User:
     return user
+
+
+@router.patch("/me", response_model=UserOut)
+async def update_me(body: ProfileUpdate, user: CurrentUser, session: SessionDep) -> User:
+    return await user_service.update_profile(session, user, body)
+
+
+@router.post("/me/password", response_model=TokenOut)
+async def change_my_password(
+    body: PasswordChange, user: CurrentUser, session: SessionDep, request: Request
+) -> TokenOut:
+    """Changes the password, signs out all other devices and returns new tokens for this one."""
+    tokens = await user_service.change_password(
+        session, user, body.current_password, body.new_password, request.headers.get("user-agent")
+    )
+    return _token_response(user, tokens)
