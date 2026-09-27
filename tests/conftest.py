@@ -1,4 +1,5 @@
 import os
+import tempfile
 
 # must happen before anything from app is imported, settings are read on import
 TEST_DATABASE_URL = os.getenv(
@@ -7,6 +8,8 @@ TEST_DATABASE_URL = os.getenv(
 os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 os.environ["DATABASE_URL_DIRECT"] = ""
 os.environ["ENVIRONMENT"] = "local"
+os.environ["STORAGE_BACKEND"] = "local"
+os.environ["LOCAL_UPLOAD_DIR"] = tempfile.mkdtemp(prefix="restaurant-test-uploads-")
 
 import asyncio  # noqa: E402
 from collections.abc import AsyncIterator, Awaitable, Callable  # noqa: E402
