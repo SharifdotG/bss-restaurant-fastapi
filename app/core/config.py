@@ -57,12 +57,29 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 15
     refresh_token_expire_days: int = 7
 
+    # "local" saves files under local_upload_dir and serves them from /media,
+    # "r2" uploads to cloudflare r2 and builds urls from r2_public_url
+    storage_backend: Literal["local", "r2"] = "local"
+    local_upload_dir: str = "uploads"
+    r2_account_id: str = ""
+    r2_access_key_id: str = ""
+    r2_secret_access_key: str = ""
+    r2_bucket: str = ""
+    r2_public_url: str = ""
+    max_upload_mb: int = 5
+
     @model_validator(mode="after")
     def _check_secret(self) -> Self:
         if self.environment != "local" and (
             self.secret_key == DEV_SECRET or len(self.secret_key) < 32
         ):
             raise ValueError("SECRET_KEY must be set to a random value of at least 32 characters")
+        if self.storage_backend == "r2":
+            required = ["r2_account_id", "r2_access_key_id", "r2_secret_access_key"]
+            required += ["r2_bucket", "r2_public_url"]
+            missing = [name for name in required if not getattr(self, name)]
+            if missing:
+                raise ValueError(f"missing r2 settings: {', '.join(missing)}")
         return self
 
     @property

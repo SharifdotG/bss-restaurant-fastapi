@@ -1,0 +1,9 @@
+from typing import Protocol
+
+
+class Storage(Protocol):
+    async def save(self, key: str, data: bytes, content_type: str) -> None: ...
+
+    async def delete(self, key: str) -> None: ...
+
+    def url(self, key: str) -> str: ...
