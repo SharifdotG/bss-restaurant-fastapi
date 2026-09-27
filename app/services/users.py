@@ -1,5 +1,4 @@
 from sqlalchemy import func, select
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import BadRequestError, ConflictError, NotFoundError, PermissionDeniedError
@@ -9,6 +8,7 @@ from app.models import User, UserRole
 from app.schemas.common import Page
 from app.schemas.user import ProfileUpdate, UserCreate, UserListParams, UserOut, UserUpdate
 from app.services import auth as auth_service
+from app.services.common import commit_or_conflict
 
 
 async def ensure_unique(
@@ -33,15 +33,6 @@ async def ensure_unique(
             raise ConflictError("A user with this phone number already exists", code="phone_taken")
 
 
-async def commit_or_conflict(session: AsyncSession) -> None:
-    # the checks above can still lose a race with another request
-    try:
-        await session.commit()
-    except IntegrityError:
-        await session.rollback()
-        raise ConflictError("A user with this email or phone number already exists") from None
-
-
 async def update_profile(session: AsyncSession, user: User, data: ProfileUpdate) -> User:
     changes = data.model_dump(exclude_unset=True)
     if changes.get("phone"):
@@ -50,7 +41,7 @@ async def update_profile(session: AsyncSession, user: User, data: ProfileUpdate)
         if field in ("first_name", "last_name") and value is None:
             continue
         setattr(user, field, value)
-    await commit_or_conflict(session)
+    await commit_or_conflict(session, "A user with this email or phone number already exists")
     return user
 
 
@@ -137,7 +128,7 @@ async def create_user(session: AsyncSession, data: UserCreate, actor: User | Non
         role=data.role,
     )
     session.add(user)
-    await commit_or_conflict(session)
+    await commit_or_conflict(session, "A user with this email or phone number already exists")
     return user
 
 
@@ -166,7 +157,7 @@ async def update_user(session: AsyncSession, actor: User, user: User, data: User
 
     if changes.get("is_active") is False:
         await auth_service.revoke_all_sessions(session, user.id)
-    await commit_or_conflict(session)
+    await commit_or_conflict(session, "A user with this email or phone number already exists")
     return user
 
 
