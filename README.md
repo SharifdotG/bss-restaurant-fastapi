@@ -29,10 +29,13 @@ cp .env.example .env
 docker compose up -d db
 
 uv run alembic upgrade head
+uv run python -m app.cli create-admin
 uv run fastapi dev
 ```
 
 API docs are at http://localhost:8000/docs and the health check is at `/api/v1/health`.
+There is no public sign up, the first admin is created with the cli and everyone else
+is added from `/api/v1/users`.
 
 ## Configuration
 
@@ -47,6 +50,31 @@ Everything is read from environment variables (or `.env`).
 | `DB_ECHO` | Log every SQL statement |
 | `CORS_ORIGINS` | Comma separated list of allowed frontend origins |
 | `DOCS_ENABLED` | Set to `false` to hide `/docs` and `/openapi.json` |
+| `SECRET_KEY` | Used to sign access tokens. Required outside `local` |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | Access token lifetime, default 15 |
+| `REFRESH_TOKEN_EXPIRE_DAYS` | Refresh token lifetime, default 7 |
+
+## Auth
+
+- `POST /auth/login` with `{ email, password }` returns an access token, a refresh token and the user
+- Send the access token as `Authorization: Bearer <token>`. When it expires the API answers
+  401 with `code: "token_expired"`, call `POST /auth/refresh` with the refresh token to get a new pair
+- Refresh tokens are single use. Using an old one again logs out that whole session, so
+  only refresh once at a time on the client
+- `POST /auth/logout` ends one session, `POST /auth/logout-all` ends all of them
+- Roles: `admin`, `manager`, `waiter`, `chef`, `cashier`. Managers can manage staff
+  accounts but not admins or other managers
+
+The Authorize button in `/docs` works too, put the email in the username field.
+
+## Tests
+
+Tests run against a real Postgres database called `restaurant_test` (created automatically,
+override with `TEST_DATABASE_URL`). With the compose database running:
+
+```bash
+uv run pytest
+```
 
 ## Migrations
 
@@ -65,7 +93,10 @@ app/
   core/       config, database, errors, logging, pagination helpers
   models/     SQLAlchemy models
   schemas/    request/response models (camelCase over the wire)
+  services/   business logic, routes stay thin
+  cli.py      management commands
 alembic/      migrations
+tests/
 ```
 
 ## API conventions
