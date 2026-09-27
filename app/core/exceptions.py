@@ -56,6 +56,12 @@ class ConflictError(AppError):
     message = "Resource already exists or is in a conflicting state"
 
 
+class PayloadTooLargeError(AppError):
+    status_code = status.HTTP_413_CONTENT_TOO_LARGE
+    code = "payload_too_large"
+    message = "The uploaded file is too large"
+
+
 def error_body(detail: Any, code: str, **extra: Any) -> dict[str, Any]:
     return {"detail": detail, "code": code, **extra}
 

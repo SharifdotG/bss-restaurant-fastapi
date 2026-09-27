@@ -1,8 +1,10 @@
 from decimal import Decimal
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, PlainSerializer
+from pydantic import BaseModel, ConfigDict, Field, PlainSerializer, computed_field
 from pydantic.alias_generators import to_camel
+
+from app.storage import file_url
 
 
 class CamelModel(BaseModel):
@@ -49,3 +51,14 @@ class Page[T](CamelModel):
 
 class Message(CamelModel):
     message: str
+
+
+class WithImage(CamelModel):
+    """Response mixin: keeps the storage key internal and exposes a ready to use url."""
+
+    image_key: str | None = Field(default=None, exclude=True)
+
+    @computed_field
+    @property
+    def image_url(self) -> str | None:
+        return file_url(self.image_key)
