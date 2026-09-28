@@ -6,6 +6,7 @@ from pydantic import EmailStr, Field, model_validator
 from app.models.employee import Gender
 from app.models.user import UserRole
 from app.schemas.common import CamelModel, ListParams, Money, WithImage
+from app.schemas.table import TableRef
 from app.schemas.user import Name, Password, Phone
 
 OptionalName = Annotated[str, Field(max_length=100)] | None
@@ -102,6 +103,7 @@ class EmployeeOut(WithImage):
     monthly_salary: Money | None
     is_active: bool
     account: EmployeeAccountOut | None = Field(None, validation_alias="user")
+    tables: list[TableRef]
     created_at: datetime
     updated_at: datetime
 

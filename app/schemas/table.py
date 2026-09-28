@@ -25,6 +25,12 @@ class TableUpdate(CamelModel):
     is_active: bool | None = None
 
 
+class TableEmployee(WithImage):
+    id: int
+    full_name: str
+    designation: str
+
+
 class TableOut(WithImage):
     id: int
     number: str
@@ -32,10 +38,21 @@ class TableOut(WithImage):
     location: str | None
     is_active: bool
     qr_token: str
+    employees: list[TableEmployee]
     created_at: datetime
     updated_at: datetime
+
+
+class TableRef(CamelModel):
+    id: int
+    number: str
 
 
 class TableListParams(ListParams):
     is_active: bool | None = None
     min_seats: int | None = Field(None, ge=1)
+    employee_id: int | None = None
+
+
+class TableEmployeesIn(CamelModel):
+    employee_ids: list[int] = Field(max_length=30)

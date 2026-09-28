@@ -5,7 +5,13 @@ from fastapi import APIRouter, Query, Response, status
 from app.api.deps import CurrentUser, ManagerUser, SessionDep
 from app.models import DiningTable
 from app.schemas.common import Page
-from app.schemas.table import TableCreate, TableListParams, TableOut, TableUpdate
+from app.schemas.table import (
+    TableCreate,
+    TableEmployeesIn,
+    TableListParams,
+    TableOut,
+    TableUpdate,
+)
 from app.services import tables as table_service
 
 router = APIRouter(prefix="/tables", tags=["tables"])
@@ -34,6 +40,15 @@ async def update_table(
 ) -> DiningTable:
     table = await table_service.get_table(session, table_id)
     return await table_service.update_table(session, table, body)
+
+
+@router.put("/{table_id}/employees", response_model=TableOut)
+async def set_table_employees(
+    table_id: int, body: TableEmployeesIn, session: SessionDep, _: ManagerUser
+) -> DiningTable:
+    """Sets which employees serve this table. Send the full list, an empty list clears it."""
+    table = await table_service.get_table(session, table_id)
+    return await table_service.set_employees(session, table, body.employee_ids)
 
 
 @router.post("/{table_id}/qr-token", response_model=TableOut)

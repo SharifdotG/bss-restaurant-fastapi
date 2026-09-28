@@ -1,10 +1,11 @@
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
-from app.core.exceptions import ConflictError, NotFoundError
+from app.core.exceptions import BadRequestError, ConflictError, NotFoundError
 from app.core.pagination import apply_sort, paginate, search_filter
-from app.models import DiningTable
+from app.models import DiningTable, Employee, TableAssignment
 from app.models.table import new_qr_token
 from app.schemas.common import Page
 from app.schemas.table import TableCreate, TableListParams, TableOut, TableUpdate
@@ -30,8 +31,20 @@ async def _ensure_number_free(
         raise ConflictError(f"Table '{number}' already exists", code="table_exists")
 
 
+def _with_employees():
+    return select(DiningTable).options(selectinload(DiningTable.employees))
+
+
 async def list_tables(session: AsyncSession, params: TableListParams) -> Page[TableOut]:
-    stmt = select(DiningTable)
+    stmt = _with_employees()
+    if params.employee_id is not None:
+        stmt = stmt.where(
+            DiningTable.id.in_(
+                select(TableAssignment.table_id).where(
+                    TableAssignment.employee_id == params.employee_id
+                )
+            )
+        )
     if params.is_active is not None:
         stmt = stmt.where(DiningTable.is_active.is_(params.is_active))
     if params.min_seats is not None:
@@ -44,7 +57,7 @@ async def list_tables(session: AsyncSession, params: TableListParams) -> Page[Ta
 
 
 async def get_table(session: AsyncSession, table_id: int) -> DiningTable:
-    table = await session.get(DiningTable, table_id)
+    table = await session.scalar(_with_employees().where(DiningTable.id == table_id))
     if table is None:
         raise NotFoundError("Table not found")
     return table
@@ -58,6 +71,7 @@ async def create_table(session: AsyncSession, data: TableCreate) -> DiningTable:
     table = DiningTable(**data.model_dump())
     session.add(table)
     await commit_or_conflict(session, "This table number already exists", "table_exists")
+    await session.refresh(table, ["employees"])
     return table
 
 
@@ -79,6 +93,44 @@ async def update_table(session: AsyncSession, table: DiningTable, data: TableUpd
 
     if old_image and old_image != table.image_key:
         await delete_image(old_image)
+    return table
+
+
+async def set_employees(
+    session: AsyncSession, table: DiningTable, employee_ids: list[int]
+) -> DiningTable:
+    """Replaces the staff assigned to a table with exactly the given employees."""
+    wanted = list(dict.fromkeys(employee_ids))
+    if wanted:
+        found = set(
+            await session.scalars(
+                select(Employee.id).where(Employee.id.in_(wanted), Employee.is_active.is_(True))
+            )
+        )
+        if missing := [i for i in wanted if i not in found]:
+            raise BadRequestError(
+                "Some employees don't exist or are inactive",
+                code="invalid_employees",
+                extra={"employeeIds": missing},
+            )
+
+    await session.execute(
+        delete(TableAssignment).where(
+            TableAssignment.table_id == table.id, TableAssignment.employee_id.not_in(wanted)
+        )
+    )
+    existing = set(
+        await session.scalars(
+            select(TableAssignment.employee_id).where(TableAssignment.table_id == table.id)
+        )
+    )
+    session.add_all(
+        TableAssignment(table_id=table.id, employee_id=employee_id)
+        for employee_id in wanted
+        if employee_id not in existing
+    )
+    await commit_or_conflict(session, "Assignments changed at the same time, try again")
+    await session.refresh(table, ["employees"])
     return table
 
 

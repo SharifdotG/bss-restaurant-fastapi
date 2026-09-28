@@ -1,12 +1,16 @@
 from datetime import date
 from decimal import Decimal
 from enum import StrEnum
+from typing import TYPE_CHECKING
 
 from sqlalchemy import ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, str_enum
 from app.models.user import User
+
+if TYPE_CHECKING:
+    from app.models.table import DiningTable
 
 
 class Gender(StrEnum):
@@ -43,6 +47,13 @@ class Employee(TimestampMixin, Base):
     is_active: Mapped[bool] = mapped_column(default=True, server_default="true")
 
     user: Mapped[User | None] = relationship(lazy="raise")
+    tables: Mapped[list["DiningTable"]] = relationship(
+        secondary="table_assignments",
+        order_by="DiningTable.number",
+        viewonly=True,
+        lazy="raise",
+        back_populates="employees",
+    )
 
     @property
     def full_name(self) -> str:

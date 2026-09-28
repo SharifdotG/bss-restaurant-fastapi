@@ -1,11 +1,11 @@
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.exceptions import BadRequestError, ConflictError, NotFoundError
 from app.core.pagination import apply_sort, paginate, search_filter
 from app.core.security import hash_password
-from app.models import Employee, User
+from app.models import Employee, TableAssignment, User
 from app.schemas.common import Page
 from app.schemas.employee import (
     EmployeeAccountIn,
@@ -33,7 +33,7 @@ DUPLICATE_MESSAGE = "An employee with this phone or NID already exists"
 
 
 def _with_user():
-    return select(Employee).options(selectinload(Employee.user))
+    return select(Employee).options(selectinload(Employee.user), selectinload(Employee.tables))
 
 
 async def _ensure_unique(
@@ -180,6 +180,8 @@ async def update_employee(
 async def deactivate_employee(session: AsyncSession, actor: User, employee: Employee) -> None:
     """Employees are never deleted, their orders and history stay intact."""
     employee.is_active = False
+    # an inactive employee shouldn't show up as serving any table
+    await session.execute(delete(TableAssignment).where(TableAssignment.employee_id == employee.id))
     user = employee.user
     if user is not None and user.is_active:
         # also commits the employee change
