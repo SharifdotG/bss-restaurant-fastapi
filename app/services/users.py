@@ -76,7 +76,7 @@ USER_SORTS = {
 }
 
 
-def _check_can_manage(actor: User | None, role: UserRole) -> None:
+def check_can_manage(actor: User | None, role: UserRole) -> None:
     # actor is None for things like the cli
     if actor is not None and actor.role != UserRole.ADMIN and role in PRIVILEGED_ROLES:
         raise PermissionDeniedError("Only admins can manage admin and manager accounts")
@@ -115,7 +115,7 @@ async def get_user(session: AsyncSession, user_id: int) -> User:
 
 
 async def create_user(session: AsyncSession, data: UserCreate, actor: User | None = None) -> User:
-    _check_can_manage(actor, data.role)
+    check_can_manage(actor, data.role)
     email = data.email.lower()
     await ensure_unique(session, email=email, phone=data.phone)
 
@@ -134,9 +134,9 @@ async def create_user(session: AsyncSession, data: UserCreate, actor: User | Non
 
 async def update_user(session: AsyncSession, actor: User, user: User, data: UserUpdate) -> User:
     changes = data.model_dump(exclude_unset=True)
-    _check_can_manage(actor, user.role)
+    check_can_manage(actor, user.role)
     if "role" in changes and changes["role"] is not None:
-        _check_can_manage(actor, changes["role"])
+        check_can_manage(actor, changes["role"])
 
     role_change = changes.get("role") not in (None, user.role)
     if user.id == actor.id and (role_change or changes.get("is_active") is False):
@@ -162,14 +162,14 @@ async def update_user(session: AsyncSession, actor: User, user: User, data: User
 
 
 async def reset_password(session: AsyncSession, actor: User, user: User, new_password: str) -> None:
-    _check_can_manage(actor, user.role)
+    check_can_manage(actor, user.role)
     user.password_hash = hash_password(new_password)
     await auth_service.revoke_all_sessions(session, user.id)
     await session.commit()
 
 
 async def deactivate_user(session: AsyncSession, actor: User, user: User) -> None:
-    _check_can_manage(actor, user.role)
+    check_can_manage(actor, user.role)
     if user.id == actor.id:
         raise BadRequestError("You can't deactivate yourself")
     await _ensure_other_admin_exists(session, user)
