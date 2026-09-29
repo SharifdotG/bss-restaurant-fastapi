@@ -46,7 +46,7 @@ Everything is read from environment variables (or `.env`).
 | `ENVIRONMENT` | `local`, `staging` or `production` |
 | `DEBUG` | Verbose logging |
 | `DATABASE_URL` | Postgres URL used by the app. For Neon use the **pooled** connection string, it can be pasted as is |
-| `DATABASE_URL_DIRECT` | Optional direct (non pooled) URL, used for migrations |
+| `DATABASE_URL_DIRECT` | Optional. Migrations use the direct (non pooled) connection, for Neon it's worked out from `DATABASE_URL` so this is rarely needed |
 | `DB_ECHO` | Log every SQL statement |
 | `CORS_ORIGINS` | Comma separated list of allowed frontend origins |
 | `DOCS_ENABLED` | Set to `false` to hide `/docs` and `/openapi.json` |

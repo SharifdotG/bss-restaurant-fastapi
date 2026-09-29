@@ -48,7 +48,8 @@ class Settings(BaseSettings):
     cors_origins: CommaList = []
     docs_enabled: bool = True
 
-    # pooled connection for the app, direct one for migrations (falls back to the pooled one)
+    # for neon use the pooled connection string, migrations derive the direct one from it.
+    # database_url_direct is only needed for databases where that doesn't work
     database_url: str = "postgresql://postgres:postgres@localhost:5432/restaurant"
     database_url_direct: str | None = None
     db_echo: bool = False
@@ -92,7 +93,14 @@ class Settings(BaseSettings):
 
     @property
     def migration_database_url(self) -> URL:
-        return to_asyncpg_url(self.database_url_direct or self.database_url)
+        if self.database_url_direct:
+            return to_asyncpg_url(self.database_url_direct)
+        url = to_asyncpg_url(self.database_url)
+        # neon's pooled host is the direct host with "-pooler" added to the endpoint id,
+        # migrations should skip pgbouncer
+        if url.host and "-pooler." in url.host:
+            url = url.set(host=url.host.replace("-pooler.", ".", 1))
+        return url
 
 
 @lru_cache

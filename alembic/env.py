@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from logging.config import fileConfig
 from uuid import uuid4
 
@@ -18,6 +19,8 @@ if config.config_file_name is not None:
 
 target_metadata = Base.metadata
 db_url = settings.migration_database_url
+# say where we're migrating, it's easy to point at the wrong database by accident
+logging.getLogger("alembic.env").info("database: %s/%s", db_url.host, db_url.database)
 
 
 def run_migrations_offline() -> None:
