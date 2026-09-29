@@ -1,5 +1,6 @@
 from functools import lru_cache
 from typing import Annotated, Any, Literal, Self
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BeforeValidator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
@@ -41,6 +42,8 @@ class Settings(BaseSettings):
     )
 
     app_name: str = "BSS Restaurant API"
+    # business days, order numbers and reports follow this timezone, not UTC
+    restaurant_tz: str = "Asia/Dhaka"
     environment: Literal["local", "staging", "production"] = "local"
     debug: bool = False
     api_prefix: str = "/api/v1"
@@ -70,7 +73,11 @@ class Settings(BaseSettings):
     max_upload_mb: int = 5
 
     @model_validator(mode="after")
-    def _check_secret(self) -> Self:
+    def _check_settings(self) -> Self:
+        try:
+            ZoneInfo(self.restaurant_tz)
+        except (ZoneInfoNotFoundError, ValueError):
+            raise ValueError(f"unknown timezone: {self.restaurant_tz}") from None
         if self.environment != "local" and (
             self.secret_key == DEV_SECRET or len(self.secret_key) < 32
         ):
