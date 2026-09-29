@@ -62,6 +62,7 @@ class OrderOut(CamelModel):
     order_type: OrderType
     source: OrderSource
     status: OrderStatus
+    next_statuses: list[OrderStatus]
     table: TableRef | None
     waiter: PersonRef | None
     created_by: PersonRef | None
@@ -77,6 +78,23 @@ class OrderOut(CamelModel):
     closed_at: datetime | None
     created_at: datetime
     updated_at: datetime
+
+
+class StatusEventOut(CamelModel):
+    from_status: OrderStatus | None
+    to_status: OrderStatus
+    changed_by: PersonRef | None
+    note: str | None
+    created_at: datetime
+
+
+class OrderDetailOut(OrderOut):
+    history: list[StatusEventOut]
+
+
+class StatusChange(CamelModel):
+    status: OrderStatus
+    note: str | None = Field(None, max_length=255, description="Required when cancelling")
 
 
 class OrderListParams(ListParams):

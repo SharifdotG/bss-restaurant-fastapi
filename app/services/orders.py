@@ -5,9 +5,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.exceptions import BadRequestError, NotFoundError
+from app.core.exceptions import BadRequestError, ConflictError, NotFoundError, PermissionDeniedError
 from app.core.pagination import apply_sort, paginate, search_filter
-from app.core.timeutils import range_bounds
+from app.core.timeutils import range_bounds, utcnow
 from app.models import (
     ACTIVE_STATUSES,
     DiningTable,
@@ -19,10 +19,28 @@ from app.models import (
     OrderStatusEvent,
     OrderType,
     User,
+    UserRole,
 )
+from app.models.order import NEXT_STATUSES
 from app.schemas.common import Page
-from app.schemas.order import OrderCreate, OrderItemIn, OrderListParams, OrderOut
+from app.schemas.order import (
+    OrderCreate,
+    OrderItemIn,
+    OrderListParams,
+    OrderOut,
+    StatusChange,
+)
 from app.services.order_numbers import next_order_number
+
+# who may move an order into each status (admins always can)
+STATUS_ROLES: dict[OrderStatus, set[UserRole]] = {
+    OrderStatus.CONFIRMED: {UserRole.MANAGER, UserRole.WAITER, UserRole.CASHIER},
+    OrderStatus.PREPARING: {UserRole.MANAGER, UserRole.CHEF},
+    OrderStatus.READY: {UserRole.MANAGER, UserRole.CHEF},
+    OrderStatus.SERVED: {UserRole.MANAGER, UserRole.WAITER},
+    OrderStatus.PAID: {UserRole.MANAGER, UserRole.CASHIER},
+    OrderStatus.CANCELLED: {UserRole.MANAGER, UserRole.WAITER, UserRole.CASHIER},
+}
 
 ORDER_SORTS = {
     "createdAt": Order.created_at,
@@ -43,7 +61,10 @@ def _orders():
 
 async def get_order(session: AsyncSession, order_id: int) -> Order:
     order = await session.scalar(
-        _orders().where(Order.id == order_id).execution_options(populate_existing=True)
+        _orders()
+        .options(selectinload(Order.history).selectinload(OrderStatusEvent.changed_by))
+        .where(Order.id == order_id)
+        .execution_options(populate_existing=True)
     )
     if order is None:
         raise NotFoundError("Order not found")
@@ -172,5 +193,50 @@ async def create_order(session: AsyncSession, actor: User, data: OrderCreate) ->
     _recalculate(order)
 
     session.add(order)
+    await session.commit()
+    return await get_order(session, order.id)
+
+
+async def change_status(
+    session: AsyncSession, actor: User, order_id: int, data: StatusChange
+) -> Order:
+    # lock the row so two people can't move the same order at once
+    order = await session.scalar(select(Order).where(Order.id == order_id).with_for_update())
+    if order is None:
+        raise NotFoundError("Order not found")
+
+    current, target = order.status, data.status
+    if target not in NEXT_STATUSES[current]:
+        raise ConflictError(
+            f"An order can't go from {current} to {target}",
+            code="invalid_status_change",
+            extra={"allowed": list(NEXT_STATUSES[current])},
+        )
+
+    allowed_roles = STATUS_ROLES[target]
+    # once the kitchen started cooking only a manager can call it off
+    if target == OrderStatus.CANCELLED and current == OrderStatus.PREPARING:
+        allowed_roles = {UserRole.MANAGER}
+    if actor.role != UserRole.ADMIN and actor.role not in allowed_roles:
+        raise PermissionDeniedError(f"Your role can't mark orders as {target}")
+
+    note = data.note.strip() if data.note else None
+    if target == OrderStatus.CANCELLED:
+        if not note:
+            raise BadRequestError("Give a reason for cancelling", code="reason_required")
+        order.cancel_reason = note
+
+    order.status = target
+    if order.is_closed:
+        order.closed_at = utcnow()
+    session.add(
+        OrderStatusEvent(
+            order_id=order.id,
+            from_status=current,
+            to_status=target,
+            changed_by_id=actor.id,
+            note=note,
+        )
+    )
     await session.commit()
     return await get_order(session, order.id)

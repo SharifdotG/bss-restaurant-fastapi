@@ -32,6 +32,18 @@ ACTIVE_STATUSES = (
 )
 
 
+# the only moves an order can make, anything else is rejected
+NEXT_STATUSES: dict[OrderStatus, tuple[OrderStatus, ...]] = {
+    OrderStatus.PENDING: (OrderStatus.CONFIRMED, OrderStatus.CANCELLED),
+    OrderStatus.CONFIRMED: (OrderStatus.PREPARING, OrderStatus.CANCELLED),
+    OrderStatus.PREPARING: (OrderStatus.READY, OrderStatus.CANCELLED),
+    OrderStatus.READY: (OrderStatus.SERVED,),
+    OrderStatus.SERVED: (OrderStatus.PAID,),
+    OrderStatus.PAID: (),
+    OrderStatus.CANCELLED: (),
+}
+
+
 class OrderType(StrEnum):
     DINE_IN = "dine_in"
     TAKEAWAY = "takeaway"
@@ -90,6 +102,14 @@ class Order(TimestampMixin, Base):
     history: Mapped[list["OrderStatusEvent"]] = relationship(
         cascade="all, delete-orphan", order_by="OrderStatusEvent.id", lazy="raise"
     )
+
+    @property
+    def next_statuses(self) -> list[OrderStatus]:
+        return list(NEXT_STATUSES[self.status])
+
+    @property
+    def is_closed(self) -> bool:
+        return self.status in (OrderStatus.PAID, OrderStatus.CANCELLED)
 
     @property
     def item_count(self) -> int:
