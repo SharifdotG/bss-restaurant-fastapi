@@ -31,6 +31,12 @@ async def _ensure_number_free(
         raise ConflictError(f"Table '{number}' already exists", code="table_exists")
 
 
+async def _reload(session: AsyncSession, table: DiningTable) -> DiningTable:
+    # computed and related fields aren't loaded after a write, async can't lazy load them
+    await session.refresh(table, ["employees", "is_occupied"])
+    return table
+
+
 def _with_employees():
     return select(DiningTable).options(selectinload(DiningTable.employees))
 
@@ -71,8 +77,7 @@ async def create_table(session: AsyncSession, data: TableCreate) -> DiningTable:
     table = DiningTable(**data.model_dump())
     session.add(table)
     await commit_or_conflict(session, "This table number already exists", "table_exists")
-    await session.refresh(table, ["employees"])
-    return table
+    return await _reload(session, table)
 
 
 async def update_table(session: AsyncSession, table: DiningTable, data: TableUpdate) -> DiningTable:
@@ -93,7 +98,7 @@ async def update_table(session: AsyncSession, table: DiningTable, data: TableUpd
 
     if old_image and old_image != table.image_key:
         await delete_image(old_image)
-    return table
+    return await _reload(session, table)
 
 
 async def set_employees(
@@ -130,15 +135,14 @@ async def set_employees(
         if employee_id not in existing
     )
     await commit_or_conflict(session, "Assignments changed at the same time, try again")
-    await session.refresh(table, ["employees"])
-    return table
+    return await _reload(session, table)
 
 
 async def regenerate_qr_token(session: AsyncSession, table: DiningTable) -> DiningTable:
     """Invalidates printed QR codes, e.g. when someone abuses the old one."""
     table.qr_token = new_qr_token()
     await session.commit()
-    return table
+    return await _reload(session, table)
 
 
 async def delete_table(session: AsyncSession, table: DiningTable) -> None:

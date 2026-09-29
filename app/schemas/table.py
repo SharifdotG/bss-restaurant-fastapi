@@ -37,6 +37,7 @@ class TableOut(WithImage):
     seats: int
     location: str | None
     is_active: bool
+    is_occupied: bool
     qr_token: str
     employees: list[TableEmployee]
     created_at: datetime

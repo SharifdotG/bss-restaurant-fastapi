@@ -23,10 +23,14 @@ class Base(DeclarativeBase):
     }
 
 
-def str_enum(enum_cls: type[StrEnum], length: int = 20) -> Enum:
-    """Store a StrEnum as varchar + check constraint, easier to migrate than native pg enums."""
+def str_enum(enum_cls: type[StrEnum], length: int = 20, name: str | None = None) -> Enum:
+    """Store a StrEnum as varchar + check constraint, easier to migrate than native pg enums.
+
+    `name` names the check constraint, needed when a table has two columns of the same enum.
+    """
     return Enum(
         enum_cls,
+        name=name or enum_cls.__name__.lower(),
         native_enum=False,
         create_constraint=True,
         length=length,
