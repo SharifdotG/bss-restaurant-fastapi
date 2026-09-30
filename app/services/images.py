@@ -18,6 +18,7 @@ class ImageFolder(StrEnum):
     CATEGORIES = "categories"
     TABLES = "tables"
     USERS = "users"
+    RECEIPTS = "receipts"
 
 
 # MPO is what some phones produce for normal jpeg photos

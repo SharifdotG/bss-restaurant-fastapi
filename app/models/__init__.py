@@ -1,6 +1,7 @@
 # import every model module here so Base.metadata is complete for alembic
 from app.models.base import Base
 from app.models.employee import Employee, Gender
+from app.models.expense import Expense, ExpenseCategory
 from app.models.menu import Category, DiscountType, Food
 from app.models.order import (
     ACTIVE_STATUSES,
@@ -23,6 +24,8 @@ __all__ = [
     "DiningTable",
     "DiscountType",
     "Employee",
+    "Expense",
+    "ExpenseCategory",
     "Food",
     "Gender",
     "Order",
