@@ -8,8 +8,10 @@ from app.schemas.common import Page
 from app.schemas.order import (
     OrderCreate,
     OrderDetailOut,
+    OrderItemsIn,
     OrderListParams,
     OrderOut,
+    OrderUpdate,
     StatusChange,
 )
 from app.services import orders as order_service
@@ -37,6 +39,29 @@ async def create_order(body: OrderCreate, session: SessionDep, actor: FrontOfHou
 @router.get("/{order_id}", response_model=OrderDetailOut)
 async def get_order(order_id: int, session: SessionDep, _: CurrentUser) -> Order:
     return await order_service.get_order(session, order_id)
+
+
+@router.patch("/{order_id}", response_model=OrderDetailOut)
+async def update_order(
+    order_id: int, body: OrderUpdate, session: SessionDep, actor: FrontOfHouse
+) -> Order:
+    return await order_service.update_order(session, actor, order_id, body)
+
+
+@router.put("/{order_id}/items", response_model=OrderDetailOut)
+async def replace_items(
+    order_id: int, body: OrderItemsIn, session: SessionDep, _: FrontOfHouse
+) -> Order:
+    """Replaces all items, only before the kitchen starts preparing."""
+    return await order_service.replace_items(session, order_id, body.items)
+
+
+@router.post("/{order_id}/items", response_model=OrderDetailOut)
+async def add_items(
+    order_id: int, body: OrderItemsIn, session: SessionDep, _: FrontOfHouse
+) -> Order:
+    """Adds items to an open order, works while it's being prepared too."""
+    return await order_service.add_items(session, order_id, body.items)
 
 
 @router.post("/{order_id}/status", response_model=OrderDetailOut)

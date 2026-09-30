@@ -28,6 +28,7 @@ from app.schemas.order import (
     OrderItemIn,
     OrderListParams,
     OrderOut,
+    OrderUpdate,
     StatusChange,
 )
 from app.services.order_numbers import next_order_number
@@ -41,6 +42,11 @@ STATUS_ROLES: dict[OrderStatus, set[UserRole]] = {
     OrderStatus.PAID: {UserRole.MANAGER, UserRole.CASHIER},
     OrderStatus.CANCELLED: {UserRole.MANAGER, UserRole.WAITER, UserRole.CASHIER},
 }
+
+# the kitchen hasn't started yet, the whole item list can still be swapped
+ITEMS_EDITABLE = (OrderStatus.PENDING, OrderStatus.CONFIRMED)
+# new items can still be added while cooking, e.g. a dessert later on
+ITEMS_APPENDABLE = (OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.PREPARING)
 
 ORDER_SORTS = {
     "createdAt": Order.created_at,
@@ -238,5 +244,70 @@ async def change_status(
             note=note,
         )
     )
+    await session.commit()
+    return await get_order(session, order.id)
+
+
+async def _lock_order(session: AsyncSession, order_id: int) -> Order:
+    order = await session.scalar(
+        select(Order)
+        .options(selectinload(Order.items))
+        .where(Order.id == order_id)
+        .with_for_update()
+    )
+    if order is None:
+        raise NotFoundError("Order not found")
+    if order.is_closed:
+        raise ConflictError(f"The order is already {order.status}", code="order_closed")
+    return order
+
+
+async def update_order(
+    session: AsyncSession, actor: User, order_id: int, data: OrderUpdate
+) -> Order:
+    order = await _lock_order(session, order_id)
+    changes = data.model_dump(exclude_unset=True)
+
+    if "table_id" in changes:
+        if order.order_type != OrderType.DINE_IN:
+            raise BadRequestError("Takeaway orders don't have a table", code="invalid_table")
+        if changes["table_id"] is None:
+            raise BadRequestError("Dine in orders need a table", code="invalid_table")
+        await _check_table(session, changes["table_id"])
+    if changes.get("waiter_id") is not None:
+        changes["waiter_id"] = await _resolve_waiter(session, actor, changes["waiter_id"])
+
+    for field, value in changes.items():
+        setattr(order, field, value)
+    await session.commit()
+    return await get_order(session, order.id)
+
+
+async def replace_items(
+    session: AsyncSession, order_id: int, items: Sequence[OrderItemIn]
+) -> Order:
+    order = await _lock_order(session, order_id)
+    if order.status not in ITEMS_EDITABLE:
+        raise ConflictError(
+            "The kitchen already started on this order, add new items instead",
+            code="order_locked",
+        )
+
+    foods = await _load_foods(session, items)
+    order.items = _build_items(items, foods)
+    _recalculate(order)
+    await session.commit()
+    return await get_order(session, order.id)
+
+
+async def add_items(session: AsyncSession, order_id: int, items: Sequence[OrderItemIn]) -> Order:
+    order = await _lock_order(session, order_id)
+    if order.status not in ITEMS_APPENDABLE:
+        raise ConflictError("Items can't be added to this order anymore", code="order_locked")
+
+    foods = await _load_foods(session, items)
+    # added as separate lines so the original lines keep their price snapshot
+    order.items.extend(_build_items(items, foods))
+    _recalculate(order)
     await session.commit()
     return await get_order(session, order.id)

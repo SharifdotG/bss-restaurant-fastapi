@@ -34,6 +34,18 @@ class OrderCreate(CamelModel):
         return self
 
 
+class OrderUpdate(CamelModel):
+    table_id: int | None = Field(None, description="Only for dine in orders")
+    waiter_id: int | None = None
+    customer_name: str | None = Field(None, max_length=100)
+    customer_phone: Phone | None = None
+    notes: str | None = Field(None, max_length=1000)
+
+
+class OrderItemsIn(CamelModel):
+    items: list[OrderItemIn] = Field(min_length=1, max_length=50)
+
+
 class TableRef(CamelModel):
     id: int
     number: str
