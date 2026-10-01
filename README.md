@@ -53,6 +53,11 @@ Everything is read from environment variables (or `.env`).
 | `SECRET_KEY` | Used to sign access tokens. Required outside `local` |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | Access token lifetime, default 15 |
 | `REFRESH_TOKEN_EXPIRE_DAYS` | Refresh token lifetime, default 7 |
+| `RESTAURANT_TZ` | Timezone of the restaurant, default `Asia/Dhaka`. Order numbers and "today" follow it |
+| `STORAGE_BACKEND` | `local` (files in `LOCAL_UPLOAD_DIR`, served from `/media`) or `r2` |
+| `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | Cloudflare R2 API token with read/write access to the bucket |
+| `R2_BUCKET`, `R2_PUBLIC_URL` | Bucket name and its public url (r2.dev or a custom domain) |
+| `MAX_UPLOAD_MB` | Upload size limit, default 5 |
 
 ## Auth
 
@@ -66,6 +71,37 @@ Everything is read from environment variables (or `.env`).
   accounts but not admins or other managers
 
 The Authorize button in `/docs` works too, put the email in the username field.
+
+## What's in there
+
+| Area | Endpoints | Notes |
+| --- | --- | --- |
+| Users | `/users` | Admins and managers manage staff accounts, nothing is hard deleted |
+| Uploads | `POST /uploads/images` | Upload first, then send the returned `key` as `imageKey`. Images are checked, resized and stored as webp |
+| Menu | `/categories`, `/foods` | Discounts are percentage or flat, the final price is always calculated by the server. Chefs can mark food as sold out |
+| Tables | `/tables` | `isOccupied` comes from open orders, every table has a QR token for customer ordering. `PUT /tables/{id}/employees` sets who serves it |
+| Employees | `/employees` | HR details, optionally with a login account created in the same request |
+| Orders | `/orders` | See below |
+| Expenses | `/expenses` | Categorised, with an optional receipt photo |
+
+### Orders
+
+The client only sends what was ordered (`foodId`, `quantity`, optional `notes`). Prices, discounts
+and totals are taken from the menu at that moment and stored on the order, so changing a price
+later doesn't touch old orders. Order numbers look like `261002-0007` (date + counter for that day).
+
+Status flow, every step is recorded in the order history:
+
+```
+pending -> confirmed -> preparing -> ready -> served -> paid
+   \____________\___________\-> cancelled (needs a reason)
+```
+
+- Each step can only be done by the roles that do it in practice: waiters confirm and serve,
+  chefs move orders through the kitchen, cashiers take payment, managers can do everything
+- `nextStatuses` on every order tells the frontend which buttons to show
+- The item list can be replaced until the kitchen starts, after that items can only be added
+- Paid and cancelled orders are read only
 
 ## Tests
 
