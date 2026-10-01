@@ -3,10 +3,18 @@ from typing import Annotated
 from fastapi import APIRouter, Query
 
 from app.api.deps import ManagerUser, SessionDep
-from app.schemas.report import TopFoodParams, TopFoodsReport
+from app.schemas.report import SalesParams, SalesReport, TopFoodParams, TopFoodsReport
 from app.services import reports as report_service
 
 router = APIRouter(prefix="/reports", tags=["reports"])
+
+
+@router.get("/sales", response_model=SalesReport)
+async def sales(
+    session: SessionDep, _: ManagerUser, params: Annotated[SalesParams, Query()]
+) -> SalesReport:
+    """Paid orders against expenses, one row per day, week, month or year."""
+    return await report_service.sales_report(session, params)
 
 
 @router.get("/top-foods", response_model=TopFoodsReport)

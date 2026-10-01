@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from enum import StrEnum
 from typing import Self
 
 from pydantic import Field, model_validator
@@ -9,6 +10,7 @@ from app.schemas.common import CamelModel, Money, WithImage
 from app.schemas.order import TableRef
 
 MAX_RANGE_DAYS = 3660
+MAX_DAILY_POINTS = 400
 
 
 class ReportRange(CamelModel):
@@ -42,6 +44,23 @@ class ReportRange(CamelModel):
         return range_bounds(self.start, self.end)
 
 
+class GroupBy(StrEnum):
+    DAY = "day"
+    WEEK = "week"
+    MONTH = "month"
+    YEAR = "year"
+
+
+class SalesParams(ReportRange):
+    group_by: GroupBy = GroupBy.DAY
+
+    @model_validator(mode="after")
+    def _limit_points(self) -> Self:
+        if self.group_by == GroupBy.DAY and (self.end - self.start).days >= MAX_DAILY_POINTS:
+            raise ValueError("too many days for groupBy=day, use week or month")
+        return self
+
+
 class TopFoodParams(ReportRange):
     limit: int = Field(10, ge=1, le=50)
     category_id: int | None = None
@@ -68,6 +87,25 @@ class PeriodSummary(CamelModel):
     expenses: Money
     profit: Money
     average_order: Money
+
+
+class SalesSummary(PeriodSummary):
+    discounts: Money
+
+
+class SalesRow(SalesSummary):
+    """One day, week, month or year. The first and last ones are cut to the requested range."""
+
+    period_start: date
+    period_end: date
+
+
+class SalesReport(CamelModel):
+    date_from: date
+    date_to: date
+    group_by: GroupBy
+    totals: SalesSummary
+    rows: list[SalesRow]
 
 
 class OpenOrders(CamelModel):

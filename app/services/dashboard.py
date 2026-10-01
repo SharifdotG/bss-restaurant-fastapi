@@ -1,36 +1,19 @@
-from decimal import Decimal
-
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from app.core.timeutils import business_date, day_bounds
 from app.models import ACTIVE_STATUSES, DiningTable, Employee, Expense, Food, Order, OrderStatus
-from app.models.menu import CENT
 from app.schemas.report import (
     Dashboard,
     MenuStats,
     OpenOrders,
-    PeriodSummary,
     RecentOrder,
     TableStats,
 )
-from app.services.reports import top_foods
+from app.services.reports import summarize, top_foods
 
 PERIODS = ("today", "this_month", "this_year", "all_time")
-
-
-def summarize(orders: int, sales: Decimal | None, expenses: Decimal | None) -> PeriodSummary:
-    sales = sales or Decimal(0)
-    expenses = expenses or Decimal(0)
-    average = (sales / orders).quantize(CENT) if orders else Decimal(0)
-    return PeriodSummary(
-        orders=orders,
-        sales=sales,
-        expenses=expenses,
-        profit=sales - expenses,
-        average_order=average,
-    )
 
 
 def _count(*criteria):
