@@ -61,6 +61,8 @@ class Order(TimestampMixin, Base):
         CheckConstraint("total >= 0", name="total_not_negative"),
         CheckConstraint("order_type <> 'dine_in' OR table_id IS NOT NULL", name="dine_in_table"),
         Index("ix_orders_status_created_at", "status", "created_at"),
+        # sales reports filter paid orders by when they were closed
+        Index("ix_orders_status_closed_at", "status", "closed_at"),
         Index("ix_orders_table_id_status", "table_id", "status"),
     )
 
