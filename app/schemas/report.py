@@ -4,7 +4,9 @@ from typing import Self
 from pydantic import Field, model_validator
 
 from app.core.timeutils import business_date, range_bounds
+from app.models.order import OrderStatus, OrderType
 from app.schemas.common import CamelModel, Money, WithImage
+from app.schemas.order import TableRef
 
 MAX_RANGE_DAYS = 3660
 
@@ -58,3 +60,57 @@ class TopFoodsReport(CamelModel):
     date_from: date
     date_to: date
     items: list[TopFood]
+
+
+class PeriodSummary(CamelModel):
+    orders: int = Field(description="Paid orders")
+    sales: Money
+    expenses: Money
+    profit: Money
+    average_order: Money
+
+
+class OpenOrders(CamelModel):
+    pending: int
+    confirmed: int
+    preparing: int
+    ready: int
+    served: int
+    total: int
+
+
+class TableStats(CamelModel):
+    total: int
+    occupied: int
+    free: int
+
+
+class MenuStats(CamelModel):
+    foods: int
+    available: int
+
+
+class RecentOrder(CamelModel):
+    id: int
+    order_number: str
+    order_type: OrderType
+    status: OrderStatus
+    table: TableRef | None
+    total: Money
+    created_at: datetime
+
+
+class Dashboard(CamelModel):
+    business_date: date
+    today: PeriodSummary
+    this_month: PeriodSummary
+    this_year: PeriodSummary
+    all_time: PeriodSummary
+    orders_today: int = Field(description="Placed today, cancelled ones not included")
+    cancelled_today: int
+    open_orders: OpenOrders
+    tables: TableStats
+    active_employees: int
+    menu: MenuStats
+    recent_orders: list[RecentOrder]
+    top_foods_this_month: list[TopFood]
