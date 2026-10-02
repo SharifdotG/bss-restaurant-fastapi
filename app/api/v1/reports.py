@@ -8,6 +8,7 @@ from app.schemas.report import (
     ReportRange,
     SalesParams,
     SalesReport,
+    StaffReport,
     TopFoodParams,
     TopFoodsReport,
 )
@@ -37,3 +38,11 @@ async def expenses(
 ) -> ExpenseReport:
     """Where the money went, per category."""
     return await report_service.expense_report(session, params)
+
+
+@router.get("/staff", response_model=StaffReport)
+async def staff(
+    session: SessionDep, _: ManagerUser, params: Annotated[ReportRange, Query()]
+) -> StaffReport:
+    """How much each waiter sold, best first."""
+    return await report_service.staff_report(session, params)

@@ -1,11 +1,11 @@
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 
-from sqlalchemy import Date, DateTime, cast, distinct, func, literal, select
+from sqlalchemy import Date, DateTime, cast, distinct, func, literal, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.models import Category, Expense, Food, Order, OrderItem, OrderStatus
+from app.models import Category, Employee, Expense, Food, Order, OrderItem, OrderStatus
 from app.models.menu import CENT
 from app.schemas.report import (
     ExpenseReport,
@@ -17,6 +17,9 @@ from app.schemas.report import (
     SalesReport,
     SalesRow,
     SalesSummary,
+    StaffMember,
+    StaffReport,
+    StaffRow,
     TopFood,
     TopFoodParams,
     TopFoodsReport,
@@ -211,6 +214,68 @@ async def expense_report(session: AsyncSession, params: ReportRange) -> ExpenseR
                 count=row.count,
                 amount=row.amount,
                 share=percent(row.amount, total),
+            )
+            for row in rows
+        ],
+    )
+
+
+async def staff_report(session: AsyncSession, params: ReportRange) -> StaffReport:
+    """Sales per waiter. The old app had an AmountSold column for this that was never filled."""
+    start, end = params.bounds
+    in_range = (Order.waiter_id.is_not(None), Order.closed_at >= start, Order.closed_at < end)
+    paid = Order.status == OrderStatus.PAID
+
+    order_stats = (
+        select(
+            Order.waiter_id,
+            func.count().filter(paid).label("orders"),
+            func.sum(Order.total).filter(paid).label("sales"),
+            func.count().filter(Order.status == OrderStatus.CANCELLED).label("cancelled"),
+        )
+        .where(*in_range)
+        .group_by(Order.waiter_id)
+        .subquery()
+    )
+    item_stats = (
+        select(Order.waiter_id, func.sum(OrderItem.quantity).label("items_sold"))
+        .join(OrderItem, OrderItem.order_id == Order.id)
+        .where(paid, *in_range)
+        .group_by(Order.waiter_id)
+        .subquery()
+    )
+    sales = func.coalesce(order_stats.c.sales, 0)
+    rows = (
+        await session.execute(
+            select(
+                Employee,
+                func.coalesce(order_stats.c.orders, 0).label("orders"),
+                sales.label("sales"),
+                func.coalesce(order_stats.c.cancelled, 0).label("cancelled"),
+                func.coalesce(item_stats.c.items_sold, 0).label("items_sold"),
+            )
+            .outerjoin(order_stats, order_stats.c.waiter_id == Employee.id)
+            .outerjoin(item_stats, item_stats.c.waiter_id == Employee.id)
+            # people who left still show up if they sold something in the range
+            .where(or_(Employee.is_active, order_stats.c.waiter_id.is_not(None)))
+            .order_by(sales.desc(), Employee.first_name, Employee.id)
+        )
+    ).all()
+
+    total = sum((row.sales for row in rows), Decimal(0))
+    return StaffReport(
+        date_from=params.start,
+        date_to=params.end,
+        total_sales=total,
+        rows=[
+            StaffRow(
+                employee=StaffMember.model_validate(row.Employee),
+                orders=row.orders,
+                items_sold=row.items_sold,
+                sales=row.sales,
+                average_order=summarize(row.orders, row.sales, None).average_order,
+                cancelled=row.cancelled,
+                share=percent(row.sales, total),
             )
             for row in rows
         ],

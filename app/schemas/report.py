@@ -8,7 +8,7 @@ from app.core.timeutils import business_date, range_bounds
 from app.models.expense import ExpenseCategory
 from app.models.order import OrderStatus, OrderType
 from app.schemas.common import CamelModel, Money, WithImage
-from app.schemas.order import TableRef
+from app.schemas.order import PersonRef, TableRef
 
 MAX_RANGE_DAYS = 3660
 MAX_DAILY_POINTS = 400
@@ -94,6 +94,28 @@ class ExpenseReport(CamelModel):
     date_to: date
     total: Money
     categories: list[ExpenseShare]
+
+
+class StaffMember(PersonRef):
+    designation: str
+    is_active: bool
+
+
+class StaffRow(CamelModel):
+    employee: StaffMember
+    orders: int = Field(description="Paid orders where this employee was the waiter")
+    items_sold: int
+    sales: Money
+    average_order: Money
+    cancelled: int
+    share: float = Field(description="Percent of the sales of everyone in the report")
+
+
+class StaffReport(CamelModel):
+    date_from: date
+    date_to: date
+    total_sales: Money
+    rows: list[StaffRow]
 
 
 class PeriodSummary(CamelModel):
