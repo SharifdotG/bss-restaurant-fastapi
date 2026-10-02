@@ -8,8 +8,11 @@ from app.core.config import settings
 from app.models import Category, Expense, Food, Order, OrderItem, OrderStatus
 from app.models.menu import CENT
 from app.schemas.report import (
+    ExpenseReport,
+    ExpenseShare,
     GroupBy,
     PeriodSummary,
+    ReportRange,
     SalesParams,
     SalesReport,
     SalesRow,
@@ -181,3 +184,34 @@ async def top_foods_report(session: AsyncSession, params: TopFoodParams) -> TopF
     start, end = params.bounds
     items = await top_foods(session, start, end, params.limit, params.category_id)
     return TopFoodsReport(date_from=params.start, date_to=params.end, items=items)
+
+
+def percent(part: Decimal, whole: Decimal) -> float:
+    return round(float(part / whole * 100), 1) if whole else 0.0
+
+
+async def expense_report(session: AsyncSession, params: ReportRange) -> ExpenseReport:
+    amount = func.sum(Expense.amount)
+    rows = (
+        await session.execute(
+            select(Expense.category, func.count().label("count"), amount.label("amount"))
+            .where(Expense.expense_date.between(params.start, params.end))
+            .group_by(Expense.category)
+            .order_by(amount.desc())
+        )
+    ).all()
+    total = sum((row.amount for row in rows), Decimal(0))
+    return ExpenseReport(
+        date_from=params.start,
+        date_to=params.end,
+        total=total,
+        categories=[
+            ExpenseShare(
+                category=row.category,
+                count=row.count,
+                amount=row.amount,
+                share=percent(row.amount, total),
+            )
+            for row in rows
+        ],
+    )

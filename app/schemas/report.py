@@ -5,6 +5,7 @@ from typing import Self
 from pydantic import Field, model_validator
 
 from app.core.timeutils import business_date, range_bounds
+from app.models.expense import ExpenseCategory
 from app.models.order import OrderStatus, OrderType
 from app.schemas.common import CamelModel, Money, WithImage
 from app.schemas.order import TableRef
@@ -79,6 +80,20 @@ class TopFoodsReport(CamelModel):
     date_from: date
     date_to: date
     items: list[TopFood]
+
+
+class ExpenseShare(CamelModel):
+    category: ExpenseCategory
+    count: int
+    amount: Money
+    share: float = Field(description="Percent of all expenses in the range")
+
+
+class ExpenseReport(CamelModel):
+    date_from: date
+    date_to: date
+    total: Money
+    categories: list[ExpenseShare]
 
 
 class PeriodSummary(CamelModel):
