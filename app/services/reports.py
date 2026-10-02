@@ -1,8 +1,10 @@
+from collections.abc import Sequence
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 
-from sqlalchemy import Date, DateTime, cast, distinct, func, literal, or_, select
+from sqlalchemy import Date, DateTime, Row, cast, distinct, func, literal, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from app.core.config import settings
 from app.models import Category, Employee, Expense, Food, Order, OrderItem, OrderStatus
@@ -280,3 +282,22 @@ async def staff_report(session: AsyncSession, params: ReportRange) -> StaffRepor
             for row in rows
         ],
     )
+
+
+async def closed_orders(session: AsyncSession, params: ReportRange) -> Sequence[Row]:
+    """Every paid or cancelled order in the range with its item count, for the accountant."""
+    start, end = params.bounds
+    item_count = (
+        select(func.sum(OrderItem.quantity)).where(OrderItem.order_id == Order.id).scalar_subquery()
+    )
+    result = await session.execute(
+        select(Order, item_count.label("items"))
+        .options(joinedload(Order.table), joinedload(Order.waiter))
+        .where(
+            Order.status.in_((OrderStatus.PAID, OrderStatus.CANCELLED)),
+            Order.closed_at >= start,
+            Order.closed_at < end,
+        )
+        .order_by(Order.closed_at, Order.id)
+    )
+    return result.all()
