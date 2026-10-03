@@ -1,9 +1,10 @@
 from datetime import date, datetime
-from typing import Self
+from typing import Annotated, Self
 
 from pydantic import Field, model_validator
 
 from app.models.order import OrderSource, OrderStatus, OrderType
+from app.models.payment import PaymentKind, PaymentMethod
 from app.schemas.common import CamelModel, ListParams, Money
 from app.schemas.restaurant import Percent
 from app.schemas.user import Phone
@@ -91,6 +92,8 @@ class OrderOut(CamelModel):
     vat_rate: Percent
     vat: Money
     total: Money
+    amount_paid: Money
+    balance_due: Money
     cancel_reason: str | None
     closed_at: datetime | None
     created_at: datetime
@@ -105,8 +108,47 @@ class StatusEventOut(CamelModel):
     created_at: datetime
 
 
+class PaymentOut(CamelModel):
+    id: int
+    kind: PaymentKind
+    method: PaymentMethod
+    amount: Money
+    tendered: Money | None
+    change: Money
+    reference: str | None
+    note: str | None
+    received_by: PersonRef | None
+    created_at: datetime
+
+
 class OrderDetailOut(OrderOut):
     history: list[StatusEventOut]
+    payments: list[PaymentOut]
+
+
+Amount = Annotated[Money, Field(gt=0)]
+
+
+class PaymentCreate(CamelModel):
+    method: PaymentMethod
+    amount: Amount | None = Field(None, description="Leave out to pay whatever is left")
+    tendered: Amount | None = Field(
+        None, description="Cash handed over by the customer, used to work out the change"
+    )
+    reference: str | None = Field(
+        None, max_length=100, description="Card slip or transaction id, required for mobile"
+    )
+    note: str | None = Field(None, max_length=255)
+
+    @model_validator(mode="after")
+    def _check(self) -> Self:
+        if self.tendered is not None and self.method != PaymentMethod.CASH:
+            raise ValueError("tendered only makes sense for cash")
+        if self.method == PaymentMethod.MOBILE and not (self.reference or "").strip():
+            raise ValueError("mobile payments need the transaction id as reference")
+        if self.amount and self.tendered and self.tendered < self.amount:
+            raise ValueError("tendered can't be less than the amount")
+        return self
 
 
 class StatusChange(CamelModel):

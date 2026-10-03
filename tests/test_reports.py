@@ -248,11 +248,15 @@ async def test_dashboard_with_the_real_order_flow(
         json={"orderType": "takeaway", "items": [{"foodId": foods["lassi"].id, "quantity": 2}]},
     )
     order_id = created.json()["id"]
-    for status in ("confirmed", "preparing", "ready", "served", "paid"):
+    for status in ("confirmed", "preparing", "ready", "served"):
         response = await client.post(
             f"/orders/{order_id}/status", headers=headers, json={"status": status}
         )
         assert response.status_code == 200, response.text
+    paid = await client.post(
+        f"/orders/{order_id}/payments", headers=headers, json={"method": "cash"}
+    )
+    assert paid.json()["status"] == "paid"
 
     body = (await client.get("/dashboard", headers=headers)).json()
 

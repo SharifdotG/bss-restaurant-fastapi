@@ -18,6 +18,7 @@ from app.models import (
     OrderStatus,
     OrderStatusEvent,
     OrderType,
+    Payment,
     User,
     UserRole,
 )
@@ -41,7 +42,6 @@ STATUS_ROLES: dict[OrderStatus, set[UserRole]] = {
     OrderStatus.PREPARING: {UserRole.MANAGER, UserRole.CHEF},
     OrderStatus.READY: {UserRole.MANAGER, UserRole.CHEF},
     OrderStatus.SERVED: {UserRole.MANAGER, UserRole.WAITER},
-    OrderStatus.PAID: {UserRole.MANAGER, UserRole.CASHIER},
     OrderStatus.CANCELLED: {UserRole.MANAGER, UserRole.WAITER, UserRole.CASHIER},
 }
 
@@ -70,7 +70,10 @@ def _orders():
 async def get_order(session: AsyncSession, order_id: int) -> Order:
     order = await session.scalar(
         _orders()
-        .options(selectinload(Order.history).selectinload(OrderStatusEvent.changed_by))
+        .options(
+            selectinload(Order.history).selectinload(OrderStatusEvent.changed_by),
+            selectinload(Order.payments).selectinload(Payment.received_by),
+        )
         .where(Order.id == order_id)
         .execution_options(populate_existing=True)
     )
@@ -218,6 +221,20 @@ async def create_order(session: AsyncSession, actor: User, data: OrderCreate) ->
     return await get_order(session, order.id)
 
 
+def close_as_paid(session: AsyncSession, order: Order, actor: User, note: str) -> None:
+    session.add(
+        OrderStatusEvent(
+            order_id=order.id,
+            from_status=order.status,
+            to_status=OrderStatus.PAID,
+            changed_by_id=actor.id,
+            note=note,
+        )
+    )
+    order.status = OrderStatus.PAID
+    order.closed_at = utcnow()
+
+
 async def change_status(
     session: AsyncSession, actor: User, order_id: int, data: StatusChange
 ) -> Order:
@@ -232,6 +249,12 @@ async def change_status(
             f"An order can't go from {current} to {target}",
             code="invalid_status_change",
             extra={"allowed": list(NEXT_STATUSES[current])},
+        )
+    if target == OrderStatus.PAID:
+        raise ConflictError(
+            "Orders are marked paid once the bill is settled, record a payment instead",
+            code="payment_required",
+            extra={"balanceDue": float(order.balance_due)},
         )
 
     allowed_roles = STATUS_ROLES[target]
@@ -259,6 +282,9 @@ async def change_status(
             note=note,
         )
     )
+    # paid up front, e.g. takeaway paid at the counter, so it's done once handed over
+    if target == OrderStatus.SERVED and order.amount_paid >= order.total:
+        close_as_paid(session, order, actor, "paid before serving")
     await session.commit()
     return await get_order(session, order.id)
 

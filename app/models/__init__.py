@@ -13,6 +13,7 @@ from app.models.order import (
     OrderStatusEvent,
     OrderType,
 )
+from app.models.payment import Payment, PaymentKind, PaymentMethod
 from app.models.refresh_token import RefreshToken
 from app.models.restaurant import RESTAURANT_ID, Restaurant
 from app.models.table import DiningTable, TableAssignment
@@ -36,6 +37,9 @@ __all__ = [
     "OrderStatus",
     "OrderStatusEvent",
     "OrderType",
+    "Payment",
+    "PaymentKind",
+    "PaymentMethod",
     "RESTAURANT_ID",
     "RefreshToken",
     "Restaurant",

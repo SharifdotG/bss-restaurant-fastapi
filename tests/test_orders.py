@@ -218,13 +218,16 @@ async def test_full_happy_path(
         (chef, "preparing"),
         (chef, "ready"),
         (waiter, "served"),
-        (cashier, "paid"),
     ]
 
     for user, status in steps:
         response = await move(client, user, order, status)
         assert response.status_code == 200, response.text
+    assert response.json()["nextStatuses"] == []
 
+    response = await client.post(
+        f"/orders/{order['id']}/payments", headers=auth_header(cashier), json={"method": "cash"}
+    )
     body = response.json()
     assert body["status"] == "paid"
     assert body["nextStatuses"] == []
@@ -238,6 +241,7 @@ async def test_full_happy_path(
         "paid",
     ]
     assert body["history"][2]["changedBy"]["id"] == chef.id
+    assert body["history"][-1]["changedBy"]["id"] == cashier.id
 
 
 async def test_steps_cannot_be_skipped(client: AsyncClient, waiter: User, order: dict) -> None:
@@ -300,8 +304,11 @@ async def test_paid_order_frees_the_table(
     client: AsyncClient, make_user: UserFactory, waiter: User, table: DiningTable, order: dict
 ) -> None:
     manager = await make_user(UserRole.MANAGER)
-    for status in ("confirmed", "preparing", "ready", "served", "paid"):
+    for status in ("confirmed", "preparing", "ready", "served"):
         await move(client, manager, order, status)
+    await client.post(
+        f"/orders/{order['id']}/payments", headers=auth_header(manager), json={"method": "card"}
+    )
 
     shown = (await client.get(f"/tables/{table.id}", headers=auth_header(manager))).json()
     assert shown["isOccupied"] is False

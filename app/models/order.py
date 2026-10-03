@@ -8,6 +8,7 @@ from sqlalchemy.orm import Mapped, column_property, mapped_column, relationship
 from app.models.base import Base, TimestampMixin, str_enum
 from app.models.employee import Employee
 from app.models.menu import Food
+from app.models.payment import Payment
 from app.models.restaurant import Percent
 from app.models.table import DiningTable
 from app.models.user import User
@@ -60,6 +61,7 @@ class Order(TimestampMixin, Base):
     __tablename__ = "orders"
     __table_args__ = (
         CheckConstraint("total >= 0", name="total_not_negative"),
+        CheckConstraint("amount_paid >= 0", name="amount_paid_not_negative"),
         CheckConstraint("order_type <> 'dine_in' OR table_id IS NOT NULL", name="dine_in_table"),
         Index("ix_orders_status_created_at", "status", "created_at"),
         # sales reports filter paid orders by when they were closed
@@ -97,6 +99,8 @@ class Order(TimestampMixin, Base):
     service_charge: Mapped[Decimal] = mapped_column(default=Decimal(0), server_default="0")
     vat: Mapped[Decimal] = mapped_column(default=Decimal(0), server_default="0")
     total: Mapped[Decimal] = mapped_column(default=Decimal(0))
+    # payments minus refunds, kept up to date with every payment
+    amount_paid: Mapped[Decimal] = mapped_column(default=Decimal(0), server_default="0")
     cancel_reason: Mapped[str | None] = mapped_column(String(255))
     closed_at: Mapped[datetime | None]
 
@@ -112,14 +116,22 @@ class Order(TimestampMixin, Base):
     history: Mapped[list["OrderStatusEvent"]] = relationship(
         cascade="all, delete-orphan", order_by="OrderStatusEvent.id", lazy="raise"
     )
+    payments: Mapped[list[Payment]] = relationship(order_by=Payment.id, lazy="raise")
 
     @property
     def next_statuses(self) -> list[OrderStatus]:
-        return list(NEXT_STATUSES[self.status])
+        # paid isn't a button, it happens by itself when the bill is settled
+        return [status for status in NEXT_STATUSES[self.status] if status != OrderStatus.PAID]
 
     @property
     def is_closed(self) -> bool:
         return self.status in (OrderStatus.PAID, OrderStatus.CANCELLED)
+
+    @property
+    def balance_due(self) -> Decimal:
+        if self.is_closed:
+            return Decimal(0)
+        return max(self.total - self.amount_paid, Decimal(0))
 
     @property
     def item_count(self) -> int:
