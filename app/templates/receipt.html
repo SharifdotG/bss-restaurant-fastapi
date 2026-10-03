@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ title }} {{ order.order_number }}</title>
+<style>
+  /* sized for 80mm thermal printers, looks fine on A4 too */
+  @page { size: 80mm auto; margin: 4mm; }
+  body { font-family: "Courier New", Courier, monospace; font-size: 12px; color: #000; background: #fff; width: 72mm; margin: 0 auto; }
+  h1 { font-size: 16px; text-align: center; margin: 0 0 2px; }
+  h2 { font-size: 13px; text-align: center; margin: 6px 0; letter-spacing: 2px; }
+  .center { text-align: center; }
+  .small { font-size: 11px; }
+  hr { border: 0; border-top: 1px dashed #000; margin: 6px 0; }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 1px 0; vertical-align: top; }
+  td.num { text-align: right; white-space: nowrap; padding-left: 6px; }
+  tr.total td { font-weight: bold; font-size: 14px; padding-top: 3px; }
+  .indent { padding-left: 10px; }
+  @media screen { body { padding: 16px 0; } }
+</style>
+</head>
+<body>
+<h1>{{ restaurant.name }}</h1>
+{% if restaurant.address %}<div class="center small">{{ restaurant.address }}</div>{% endif %}
+{% if restaurant.phone %}<div class="center small">Phone: {{ restaurant.phone }}</div>{% endif %}
+{% if restaurant.tax_id %}<div class="center small">BIN: {{ restaurant.tax_id }}</div>{% endif %}
+
+<h2>{{ title | upper }}</h2>
+
+<table class="small">
+  <tr><td>Order</td><td class="num">{{ order.order_number }}</td></tr>
+  <tr><td>Date</td><td class="num">{{ local(order.created_at).strftime("%d %b %Y %H:%M") }}</td></tr>
+  {% if order.table %}<tr><td>Table</td><td class="num">{{ order.table.number }}</td></tr>{% else %}<tr><td>Type</td><td class="num">Takeaway</td></tr>{% endif %}
+  {% if order.waiter %}<tr><td>Served by</td><td class="num">{{ order.waiter.full_name }}</td></tr>{% endif %}
+  {% if order.customer_name %}<tr><td>Customer</td><td class="num">{{ order.customer_name }}</td></tr>{% endif %}
+</table>
+<hr>
+
+<table>
+  {% for item in order.items %}
+  <tr><td colspan="2">{{ item.food_name }}</td></tr>
+  <tr>
+    <td class="indent small">{{ item.quantity }} x {{ money(item.final_unit_price) }}{% if item.unit_discount > 0 %} (was {{ money(item.unit_price) }}){% endif %}</td>
+    <td class="num">{{ money(item.line_total) }}</td>
+  </tr>
+  {% endfor %}
+</table>
+<hr>
+
+<table>
+  <tr><td>Subtotal</td><td class="num">{{ money(order.subtotal) }}</td></tr>
+  {% if order.discount_total > 0 %}<tr><td>Discount</td><td class="num">-{{ money(order.discount_total) }}</td></tr>{% endif %}
+  {% if order.service_charge > 0 %}<tr><td>Service charge {{ percent(order.service_charge_rate) }}</td><td class="num">{{ money(order.service_charge) }}</td></tr>{% endif %}
+  {% if order.vat > 0 %}<tr><td>VAT {{ percent(order.vat_rate) }}</td><td class="num">{{ money(order.vat) }}</td></tr>{% endif %}
+  <tr class="total"><td>Total</td><td class="num">{{ money(order.total) }}</td></tr>
+</table>
+
+{% if order.payments %}
+<hr>
+<table class="small">
+  {% for payment in order.payments %}
+  <tr>
+    <td>{% if payment.kind == "refund" %}Refund, {% endif %}{{ methods[payment.method] }}{% if payment.reference %} ({{ payment.reference }}){% endif %}</td>
+    <td class="num">{% if payment.kind == "refund" %}-{% endif %}{{ money(payment.amount) }}</td>
+  </tr>
+  {% if payment.tendered %}
+  <tr><td class="indent">Cash given</td><td class="num">{{ money(payment.tendered) }}</td></tr>
+  <tr><td class="indent">Change</td><td class="num">{{ money(payment.change) }}</td></tr>
+  {% endif %}
+  {% endfor %}
+  <tr><td>Paid</td><td class="num">{{ money(order.amount_paid) }}</td></tr>
+  {% if order.balance_due > 0 %}<tr class="total"><td>Due</td><td class="num">{{ money(order.balance_due) }}</td></tr>{% endif %}
+</table>
+{% endif %}
+
+<hr>
+<div class="center">{{ restaurant.receipt_footer or "Thank you, come again!" }}</div>
+<div class="center small">Printed {{ printed_at.strftime("%d %b %Y %H:%M") }}</div>
+{% if auto_print %}
+<script>window.addEventListener("load", () => window.print());</script>
+{% endif %}
+</body>
+</html>
