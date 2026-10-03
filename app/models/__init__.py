@@ -14,6 +14,7 @@ from app.models.order import (
     OrderType,
 )
 from app.models.refresh_token import RefreshToken
+from app.models.restaurant import RESTAURANT_ID, Restaurant
 from app.models.table import DiningTable, TableAssignment
 from app.models.user import User, UserRole
 
@@ -35,7 +36,9 @@ __all__ = [
     "OrderStatus",
     "OrderStatusEvent",
     "OrderType",
+    "RESTAURANT_ID",
     "RefreshToken",
+    "Restaurant",
     "TableAssignment",
     "User",
     "UserRole",
