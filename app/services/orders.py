@@ -1,5 +1,5 @@
 from collections.abc import Sequence
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,6 +21,7 @@ from app.models import (
     User,
     UserRole,
 )
+from app.models.menu import CENT
 from app.models.order import NEXT_STATUSES
 from app.schemas.common import Page
 from app.schemas.order import (
@@ -32,6 +33,7 @@ from app.schemas.order import (
     StatusChange,
 )
 from app.services.order_numbers import next_order_number
+from app.services.restaurant import get_restaurant
 
 # who may move an order into each status (admins always can)
 STATUS_ROLES: dict[OrderStatus, set[UserRole]] = {
@@ -154,10 +156,18 @@ def _build_items(items: Sequence[OrderItemIn], foods: dict[int, Food]) -> list[O
     return lines
 
 
+def _percent_of(amount: Decimal, rate: Decimal) -> Decimal:
+    return (amount * rate / 100).quantize(CENT, rounding=ROUND_HALF_UP)
+
+
 def _recalculate(order: Order) -> None:
     order.subtotal = sum((i.unit_price * i.quantity for i in order.items), Decimal(0))
     order.discount_total = sum((i.unit_discount * i.quantity for i in order.items), Decimal(0))
-    order.total = sum((i.line_total for i in order.items), Decimal(0))
+    food_total = sum((i.line_total for i in order.items), Decimal(0))
+    order.service_charge = _percent_of(food_total, order.service_charge_rate)
+    # vat is charged on the service charge as well
+    order.vat = _percent_of(food_total + order.service_charge, order.vat_rate)
+    order.total = food_total + order.service_charge + order.vat
 
 
 async def _check_table(session: AsyncSession, table_id: int) -> None:
@@ -182,6 +192,9 @@ async def create_order(session: AsyncSession, actor: User, data: OrderCreate) ->
     if data.order_type == OrderType.DINE_IN:
         await _check_table(session, data.table_id)
     foods = await _load_foods(session, data.items)
+    restaurant = await get_restaurant(session)
+    # service charge is for table service, takeaway doesn't pay it
+    dine_in = data.order_type == OrderType.DINE_IN
 
     order = Order(
         order_number=await next_order_number(session),
@@ -193,6 +206,8 @@ async def create_order(session: AsyncSession, actor: User, data: OrderCreate) ->
         customer_phone=data.customer_phone,
         notes=data.notes,
         status=OrderStatus.PENDING,
+        service_charge_rate=restaurant.service_charge_percent if dine_in else Decimal(0),
+        vat_rate=restaurant.vat_percent,
     )
     order.items = _build_items(data.items, foods)
     order.history = [OrderStatusEvent(to_status=OrderStatus.PENDING, changed_by_id=actor.id)]

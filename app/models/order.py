@@ -8,6 +8,7 @@ from sqlalchemy.orm import Mapped, column_property, mapped_column, relationship
 from app.models.base import Base, TimestampMixin, str_enum
 from app.models.employee import Employee
 from app.models.menu import Food
+from app.models.restaurant import Percent
 from app.models.table import DiningTable
 from app.models.user import User
 
@@ -88,6 +89,13 @@ class Order(TimestampMixin, Base):
     # money is always calculated on the server from the food prices
     subtotal: Mapped[Decimal] = mapped_column(default=Decimal(0))
     discount_total: Mapped[Decimal] = mapped_column(default=Decimal(0))
+    # copied from the restaurant settings when the order is placed
+    service_charge_rate: Mapped[Decimal] = mapped_column(
+        Percent, default=Decimal(0), server_default="0"
+    )
+    vat_rate: Mapped[Decimal] = mapped_column(Percent, default=Decimal(0), server_default="0")
+    service_charge: Mapped[Decimal] = mapped_column(default=Decimal(0), server_default="0")
+    vat: Mapped[Decimal] = mapped_column(default=Decimal(0), server_default="0")
     total: Mapped[Decimal] = mapped_column(default=Decimal(0))
     cancel_reason: Mapped[str | None] = mapped_column(String(255))
     closed_at: Mapped[datetime | None]

@@ -5,6 +5,7 @@ from pydantic import Field, model_validator
 
 from app.models.order import OrderSource, OrderStatus, OrderType
 from app.schemas.common import CamelModel, ListParams, Money
+from app.schemas.restaurant import Percent
 from app.schemas.user import Phone
 
 
@@ -85,6 +86,10 @@ class OrderOut(CamelModel):
     item_count: int
     subtotal: Money
     discount_total: Money
+    service_charge_rate: Percent
+    service_charge: Money
+    vat_rate: Percent
+    vat: Money
     total: Money
     cancel_reason: str | None
     closed_at: datetime | None
