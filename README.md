@@ -83,6 +83,8 @@ The Authorize button in `/docs` works too, put the email in the username field.
 | Employees | `/employees` | HR details, optionally with a login account created in the same request |
 | Orders | `/orders` | See below |
 | Expenses | `/expenses` | Categorised, with an optional receipt photo |
+| Dashboard | `GET /dashboard` | Managers and cashiers. See below |
+| Reports | `/reports/*` | Managers only. See below |
 
 ### Orders
 
@@ -102,6 +104,24 @@ pending -> confirmed -> preparing -> ready -> served -> paid
 - `nextStatuses` on every order tells the frontend which buttons to show
 - The item list can be replaced until the kitchen starts, after that items can only be added
 - Paid and cancelled orders are read only
+
+### Dashboard and reports
+
+All money figures only count **paid** orders, and an order counts on the day it was paid.
+Days are restaurant days (`RESTAURANT_TZ`), so a sale at 00:30 belongs to that morning even
+though it's still the previous day in UTC. Profit is sales minus expenses.
+
+| Endpoint | What you get |
+| --- | --- |
+| `GET /dashboard` | Today, this month, this year and all time (orders, sales, expenses, profit, average order), open orders per status, table occupancy, recent orders, best sellers this month |
+| `GET /reports/sales` | One row per `groupBy=day\|week\|month\|year`, days without sales included so charts have no holes |
+| `GET /reports/top-foods` | Best sellers, optional `categoryId` and `limit` |
+| `GET /reports/staff` | Orders, items and sales per waiter |
+| `GET /reports/expenses` | Expenses per category with their share |
+
+Every report takes `dateFrom` and `dateTo` (both included, default is the current month so far).
+Add `.csv` to any of them (`/reports/sales.csv`, ...) to download it for Excel, and
+`/reports/orders.csv` gives every paid or cancelled order in the range, one per line.
 
 ## Tests
 
