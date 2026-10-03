@@ -268,6 +268,12 @@ async def change_status(
     if target == OrderStatus.CANCELLED:
         if not note:
             raise BadRequestError("Give a reason for cancelling", code="reason_required")
+        if order.amount_paid > 0:
+            raise ConflictError(
+                "Refund what was paid before cancelling the order",
+                code="refund_required",
+                extra={"amountPaid": float(order.amount_paid)},
+            )
         order.cancel_reason = note
 
     order.status = target
@@ -337,6 +343,12 @@ async def replace_items(
     foods = await _load_foods(session, items)
     order.items = _build_items(items, foods)
     _recalculate(order)
+    if order.amount_paid > order.total:
+        raise ConflictError(
+            "The new total is less than what was already paid, refund the difference first",
+            code="refund_required",
+            extra={"amountPaid": float(order.amount_paid), "total": float(order.total)},
+        )
     await session.commit()
     return await get_order(session, order.id)
 

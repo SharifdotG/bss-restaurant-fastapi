@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import BadRequestError, ConflictError, NotFoundError
 from app.models import Order, OrderStatus, Payment, PaymentKind, User
-from app.schemas.order import PaymentCreate
+from app.schemas.order import PaymentCreate, RefundCreate
 from app.services.orders import close_as_paid, get_order
 
 
@@ -53,5 +53,35 @@ async def record_payment(
     if order.status == OrderStatus.SERVED and order.amount_paid >= order.total:
         close_as_paid(session, order, actor, "bill settled")
 
+    await session.commit()
+    return await get_order(session, order.id)
+
+
+async def record_refund(
+    session: AsyncSession, actor: User, order_id: int, data: RefundCreate
+) -> Order:
+    """Gives money back. A paid order stays paid."""
+    order = await _lock(session, order_id)
+    if order.amount_paid <= 0:
+        raise ConflictError("Nothing was paid on this order", code="nothing_to_refund")
+    if data.amount > order.amount_paid:
+        raise ConflictError(
+            f"At most {order.amount_paid} can be refunded",
+            code="refund_too_high",
+            extra={"refundable": float(order.amount_paid)},
+        )
+
+    session.add(
+        Payment(
+            order_id=order.id,
+            kind=PaymentKind.REFUND,
+            method=data.method,
+            amount=data.amount,
+            reference=data.reference.strip() if data.reference else None,
+            note=data.reason.strip(),
+            received_by_id=actor.id,
+        )
+    )
+    order.amount_paid -= data.amount
     await session.commit()
     return await get_order(session, order.id)

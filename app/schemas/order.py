@@ -151,6 +151,13 @@ class PaymentCreate(CamelModel):
         return self
 
 
+class RefundCreate(CamelModel):
+    method: PaymentMethod = Field(description="How the money goes back to the customer")
+    amount: Amount
+    reason: str = Field(min_length=3, max_length=255)
+    reference: str | None = Field(None, max_length=100)
+
+
 class StatusChange(CamelModel):
     status: OrderStatus
     note: str | None = Field(None, max_length=255, description="Required when cancelling")
