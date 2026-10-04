@@ -21,10 +21,12 @@ class AppError(Exception):
         *,
         code: str | None = None,
         extra: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
     ) -> None:
         self.message = message or self.message
         self.code = code or self.code
         self.extra = extra
+        self.headers = headers
         super().__init__(self.message)
 
 
@@ -62,14 +64,27 @@ class PayloadTooLargeError(AppError):
     message = "The uploaded file is too large"
 
 
+class TooManyRequestsError(AppError):
+    status_code = status.HTTP_429_TOO_MANY_REQUESTS
+    code = "rate_limited"
+    message = "Too many requests, try again in a bit"
+
+    def __init__(self, retry_after: int) -> None:
+        super().__init__(
+            extra={"retryAfter": retry_after}, headers={"Retry-After": str(retry_after)}
+        )
+
+
 def error_body(detail: Any, code: str, **extra: Any) -> dict[str, Any]:
     return {"detail": detail, "code": code, **extra}
 
 
 async def app_error_handler(_: Request, exc: AppError) -> JSONResponse:
     body = error_body(exc.message, exc.code, **(exc.extra or {}))
-    headers = {"WWW-Authenticate": "Bearer"} if isinstance(exc, AuthenticationError) else None
-    return JSONResponse(body, status_code=exc.status_code, headers=headers)
+    headers = dict(exc.headers or {})
+    if isinstance(exc, AuthenticationError):
+        headers["WWW-Authenticate"] = "Bearer"
+    return JSONResponse(body, status_code=exc.status_code, headers=headers or None)
 
 
 async def validation_error_handler(_: Request, exc: RequestValidationError) -> JSONResponse:

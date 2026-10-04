@@ -28,6 +28,7 @@ from sqlalchemy.ext.asyncio import (  # noqa: E402
 
 from app.core.config import settings, to_asyncpg_url  # noqa: E402
 from app.core.database import get_session  # noqa: E402
+from app.core.ratelimit import limiter  # noqa: E402
 from app.core.security import create_access_token, hash_password  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models import Base, User, UserRole  # noqa: E402
@@ -84,6 +85,8 @@ app.dependency_overrides[get_session] = _override_session
 @pytest.fixture(autouse=True)
 async def _clean_tables(anyio_backend: str) -> AsyncIterator[None]:
     yield
+    # every test client comes from the same ip, don't let limits leak between tests
+    limiter.reset()
     tables = ", ".join(f'"{t.name}"' for t in Base.metadata.sorted_tables)
     async with test_engine.begin() as conn:
         await conn.execute(text(f"TRUNCATE {tables} RESTART IDENTITY CASCADE"))

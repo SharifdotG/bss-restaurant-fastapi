@@ -2,7 +2,7 @@ from functools import lru_cache
 from typing import Annotated, Any, Literal, Self
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import BeforeValidator, model_validator
+from pydantic import BeforeValidator, Field, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 from sqlalchemy.engine import URL, make_url
 
@@ -49,6 +49,10 @@ class Settings(BaseSettings):
     api_prefix: str = "/api/v1"
 
     cors_origins: CommaList = []
+    rate_limit_enabled: bool = True
+    # how many proxies sit in front of the app, used to find the real client ip in
+    # X-Forwarded-For. 0 means use the address of the connection itself
+    trusted_proxy_hops: int = Field(0, ge=0, le=5)
     docs_enabled: bool = True
 
     # for neon use the pooled connection string, migrations derive the direct one from it.

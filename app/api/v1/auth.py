@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 
 from app.api.deps import CurrentUser, SessionDep
+from app.core.ratelimit import client_ip, limiter, rate_limit
 from app.models import User
 from app.schemas.auth import LoginIn, OAuth2TokenOut, RefreshIn, TokenOut
 from app.schemas.user import PasswordChange, ProfileUpdate, UserOut
@@ -11,6 +12,14 @@ from app.services import auth as auth_service
 from app.services import users as user_service
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+# the old api let anyone guess passwords as fast as they liked
+LoginLimit = Depends(rate_limit("login", limit=20, window=60))
+
+
+def _limit_account(request: Request, email: str) -> None:
+    # stricter per account, so one ip can't keep guessing a single password
+    limiter.hit(f"login:{client_ip(request)}:{email.lower()}", limit=5, window=300)
 
 
 def _token_response(user: User, tokens: auth_service.TokenPair) -> TokenOut:
@@ -22,21 +31,28 @@ def _token_response(user: User, tokens: auth_service.TokenPair) -> TokenOut:
     )
 
 
-@router.post("/login", response_model=TokenOut)
+@router.post("/login", response_model=TokenOut, dependencies=[LoginLimit])
 async def login(body: LoginIn, session: SessionDep, request: Request) -> TokenOut:
+    _limit_account(request, body.email)
     user, tokens = await auth_service.login(
         session, body.email, body.password, request.headers.get("user-agent")
     )
     return _token_response(user, tokens)
 
 
-@router.post("/token", response_model=OAuth2TokenOut, summary="Login form for the docs")
+@router.post(
+    "/token",
+    response_model=OAuth2TokenOut,
+    summary="Login form for the docs",
+    dependencies=[LoginLimit],
+)
 async def login_form(
     form: Annotated[OAuth2PasswordRequestForm, Depends()],
     session: SessionDep,
     request: Request,
 ) -> OAuth2TokenOut:
     """OAuth2 password flow, used by the Authorize button in /docs. Put the email in `username`."""
+    _limit_account(request, form.username)
     _, tokens = await auth_service.login(
         session, form.username, form.password, request.headers.get("user-agent")
     )
