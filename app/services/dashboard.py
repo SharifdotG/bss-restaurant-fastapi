@@ -3,7 +3,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from app.core.timeutils import business_date, day_bounds
-from app.models import ACTIVE_STATUSES, DiningTable, Employee, Expense, Food, Order, OrderStatus
+from app.models import (
+    ACTIVE_STATUSES,
+    DiningTable,
+    Employee,
+    Expense,
+    Food,
+    Order,
+    OrderStatus,
+    Payment,
+)
 from app.schemas.report import (
     Dashboard,
     MenuStats,
@@ -11,7 +20,7 @@ from app.schemas.report import (
     RecentOrder,
     TableStats,
 )
-from app.services.reports import summarize, top_foods
+from app.services.reports import refunds_after_sale, summarize, top_foods
 
 PERIODS = ("today", "this_month", "this_year", "all_time")
 
@@ -21,7 +30,7 @@ def _count(*criteria):
 
 
 async def get_dashboard(session: AsyncSession) -> Dashboard:
-    # the old dashboard ran ~20 queries one after another, this does the same in five
+    # the old dashboard ran ~20 queries one after another, this does the same in six
     today = business_date()
     period_start = {
         "today": today,
@@ -39,6 +48,7 @@ async def get_dashboard(session: AsyncSession) -> Dashboard:
         order_columns += [
             func.count().filter(*criteria).label(f"{name}_orders"),
             func.sum(Order.total).filter(*criteria).label(f"{name}_sales"),
+            func.sum(Order.vat).filter(*criteria).label(f"{name}_vat"),
         ]
     order_columns += [
         func.count()
@@ -57,6 +67,13 @@ async def get_dashboard(session: AsyncSession) -> Dashboard:
     ]
     expense_columns.append(func.sum(Expense.amount).label("all_time"))
     expenses = (await session.execute(select(*expense_columns))).one()._mapping
+
+    refund_columns = [
+        func.sum(Payment.amount).filter(Payment.created_at >= day_bounds(day)[0]).label(name)
+        for name, day in period_start.items()
+    ]
+    refund_columns.append(func.sum(Payment.amount).label("all_time"))
+    refunds = (await session.execute(refunds_after_sale(*refund_columns))).one()._mapping
 
     counts = (
         await session.execute(
@@ -83,7 +100,13 @@ async def get_dashboard(session: AsyncSession) -> Dashboard:
     return Dashboard(
         business_date=today,
         **{
-            name: summarize(orders[f"{name}_orders"], orders[f"{name}_sales"], expenses[name])
+            name: summarize(
+                orders[f"{name}_orders"],
+                orders[f"{name}_sales"],
+                expenses[name],
+                orders[f"{name}_vat"],
+                refunds[name],
+            )
             for name in PERIODS
         },
         orders_today=orders["orders_today"],

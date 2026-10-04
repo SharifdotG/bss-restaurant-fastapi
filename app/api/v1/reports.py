@@ -64,7 +64,18 @@ async def sales_csv(
     report = await report_service.sales_report(session, params)
     return csv_response(
         _filename("sales", params),
-        ["From", "To", "Orders", "Sales", "Discounts", "Expenses", "Profit", "Average order"],
+        [
+            "From",
+            "To",
+            "Orders",
+            "Sales",
+            "Discounts",
+            "VAT",
+            "Refunds",
+            "Expenses",
+            "Profit",
+            "Average order",
+        ],
         (
             [
                 r.period_start,
@@ -72,6 +83,8 @@ async def sales_csv(
                 r.orders,
                 r.sales,
                 r.discounts,
+                r.vat,
+                r.refunds,
                 r.expenses,
                 r.profit,
                 r.average_order,
@@ -147,6 +160,8 @@ async def orders_csv(
             "Items",
             "Subtotal",
             "Discount",
+            "Service charge",
+            "VAT",
             "Total",
             "Cancel reason",
         ],
@@ -161,6 +176,8 @@ async def orders_csv(
                 items,
                 order.subtotal,
                 order.discount_total,
+                order.service_charge,
+                order.vat,
                 order.total,
                 order.cancel_reason,
             ]

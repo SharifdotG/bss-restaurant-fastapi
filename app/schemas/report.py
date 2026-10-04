@@ -120,9 +120,11 @@ class StaffReport(CamelModel):
 
 class PeriodSummary(CamelModel):
     orders: int = Field(description="Paid orders")
-    sales: Money
+    sales: Money = Field(description="What customers paid, VAT and service charge included")
+    vat: Money
+    refunds: Money = Field(description="Money given back after an order was paid")
     expenses: Money
-    profit: Money
+    profit: Money = Field(description="Sales minus VAT, refunds and expenses")
     average_order: Money
 
 

@@ -7,7 +7,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from app.core.config import settings
-from app.models import Category, Employee, Expense, Food, Order, OrderItem, OrderStatus
+from app.models import (
+    Category,
+    Employee,
+    Expense,
+    Food,
+    Order,
+    OrderItem,
+    OrderStatus,
+    Payment,
+    PaymentKind,
+)
 from app.models.menu import CENT
 from app.schemas.report import (
     ExpenseReport,
@@ -28,16 +38,44 @@ from app.schemas.report import (
 )
 
 
-def summarize(orders: int, sales: Decimal | None, expenses: Decimal | None) -> PeriodSummary:
+def summarize(
+    orders: int,
+    sales: Decimal | None,
+    expenses: Decimal | None,
+    vat: Decimal | None = None,
+    refunds: Decimal | None = None,
+) -> PeriodSummary:
     sales = sales or Decimal(0)
     expenses = expenses or Decimal(0)
+    vat = vat or Decimal(0)
+    refunds = refunds or Decimal(0)
     average = (sales / orders).quantize(CENT) if orders else Decimal(0)
     return PeriodSummary(
         orders=orders,
         sales=sales,
+        vat=vat,
+        refunds=refunds,
         expenses=expenses,
-        profit=sales - expenses,
+        # vat is collected for the government, it was never ours
+        profit=sales - vat - refunds - expenses,
         average_order=average,
+    )
+
+
+def refunds_after_sale(*columns):
+    """Refunds on paid orders made after they were paid, these count on the day of the refund.
+
+    A refund before that only fixed a wrong payment, the order total already reflects it.
+    """
+    return (
+        select(*columns)
+        .select_from(Payment)
+        .join(Order, Order.id == Payment.order_id)
+        .where(
+            Payment.kind == PaymentKind.REFUND,
+            Order.status == OrderStatus.PAID,
+            Payment.created_at >= Order.closed_at,
+        )
     )
 
 
@@ -93,6 +131,7 @@ async def sales_report(session: AsyncSession, params: SalesParams) -> SalesRepor
             func.count().label("orders"),
             func.sum(Order.total).label("sales"),
             func.sum(Order.discount_total).label("discounts"),
+            func.sum(Order.vat).label("vat"),
         )
         .where(
             Order.status == OrderStatus.PAID,
@@ -111,15 +150,25 @@ async def sales_report(session: AsyncSession, params: SalesParams) -> SalesRepor
     )
     expenses = {row.period: row.amount for row in expense_rows}
 
+    refund_bucket = _bucket(params.group_by, func.timezone(tz, Payment.created_at))
+    refund_rows = await session.execute(
+        refunds_after_sale(refund_bucket, func.sum(Payment.amount).label("amount"))
+        .where(Payment.created_at >= start, Payment.created_at < end)
+        .group_by(refund_bucket)
+    )
+    refunds = {row.period: row.amount for row in refund_rows}
+
     # periods without any sale still get a row, charts need the gaps
     rows = []
     for period in periods(params.start, params.end, params.group_by):
         last_day = next_period(period, params.group_by) - timedelta(days=1)
         sold = sales.get(period)
-        summary = (
-            summarize(sold.orders, sold.sales, expenses.get(period))
-            if sold
-            else summarize(0, None, expenses.get(period))
+        summary = summarize(
+            sold.orders if sold else 0,
+            sold.sales if sold else None,
+            expenses.get(period),
+            sold.vat if sold else None,
+            refunds.get(period),
         )
         rows.append(
             SalesRow(
@@ -134,6 +183,8 @@ async def sales_report(session: AsyncSession, params: SalesParams) -> SalesRepor
         sum(row.orders for row in rows),
         sum((row.sales for row in rows), Decimal(0)),
         sum((row.expenses for row in rows), Decimal(0)),
+        sum((row.vat for row in rows), Decimal(0)),
+        sum((row.refunds for row in rows), Decimal(0)),
     )
     return SalesReport(
         date_from=params.start,

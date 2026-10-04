@@ -196,6 +196,8 @@ async def test_dashboard(
     assert body["today"] == {
         "orders": 2,
         "sales": 900,
+        "vat": 0,
+        "refunds": 0,
         "expenses": 50,
         "profit": 850,
         "averageOrder": 450,
@@ -517,7 +519,7 @@ async def test_orders_csv(
     assert second[2] == "paid"
     assert second[6] == "4"
     assert first[5] == "Rafi Test"
-    assert first[10] == "customer left"
+    assert first[-1] == "customer left"
 
 
 async def test_csv_cells_cant_be_formulas(
