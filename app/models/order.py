@@ -1,3 +1,4 @@
+import secrets
 from datetime import date, datetime
 from decimal import Decimal
 from enum import StrEnum
@@ -57,6 +58,10 @@ class OrderSource(StrEnum):
     ONLINE = "online"
 
 
+def new_tracking_code() -> str:
+    return secrets.token_urlsafe(12)
+
+
 class Order(TimestampMixin, Base):
     __tablename__ = "orders"
     __table_args__ = (
@@ -71,6 +76,9 @@ class Order(TimestampMixin, Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     order_number: Mapped[str] = mapped_column(String(20), unique=True)
+    # customers follow their order with this, so it has to be hard to guess (order
+    # numbers are not)
+    tracking_code: Mapped[str] = mapped_column(String(24), unique=True, default=new_tracking_code)
     order_type: Mapped[OrderType] = mapped_column(str_enum(OrderType))
     source: Mapped[OrderSource] = mapped_column(
         str_enum(OrderSource), default=OrderSource.STAFF, server_default=OrderSource.STAFF

@@ -91,6 +91,8 @@ async def list_orders(session: AsyncSession, params: OrderListParams) -> Page[Or
         stmt = stmt.where(active if params.active else ~active)
     if params.order_type is not None:
         stmt = stmt.where(Order.order_type == params.order_type)
+    if params.source:
+        stmt = stmt.where(Order.source.in_(params.source))
     if params.table_id is not None:
         stmt = stmt.where(Order.table_id == params.table_id)
     if params.waiter_id is not None:

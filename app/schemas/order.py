@@ -73,6 +73,7 @@ class OrderItemOut(CamelModel):
 class OrderOut(CamelModel):
     id: int
     order_number: str
+    tracking_code: str
     order_type: OrderType
     source: OrderSource
     status: OrderStatus
@@ -167,6 +168,7 @@ class OrderListParams(ListParams):
     status: list[OrderStatus] | None = None
     active: bool | None = Field(None, description="Only orders that aren't paid or cancelled")
     order_type: OrderType | None = None
+    source: list[OrderSource] | None = None
     table_id: int | None = None
     waiter_id: int | None = None
     date_from: date | None = Field(None, description="Restaurant local date, inclusive")
