@@ -76,12 +76,14 @@ The Authorize button in `/docs` works too, put the email in the username field.
 
 | Area | Endpoints | Notes |
 | --- | --- | --- |
+| Restaurant | `/restaurant` | Name and details for receipts, currency, VAT and service charge |
 | Users | `/users` | Admins and managers manage staff accounts, nothing is hard deleted |
 | Uploads | `POST /uploads/images` | Upload first, then send the returned `key` as `imageKey`. Images are checked, resized and stored as webp |
 | Menu | `/categories`, `/foods` | Discounts are percentage or flat, the final price is always calculated by the server. Chefs can mark food as sold out |
 | Tables | `/tables` | `isOccupied` comes from open orders, every table has a QR token for customer ordering. `PUT /tables/{id}/employees` sets who serves it |
 | Employees | `/employees` | HR details, optionally with a login account created in the same request |
 | Orders | `/orders` | See below |
+| Payments | `/orders/{id}/payments`, `/orders/{id}/refunds`, `/orders/{id}/receipt` | See below |
 | Expenses | `/expenses` | Categorised, with an optional receipt photo |
 | Dashboard | `GET /dashboard` | Managers and cashiers. See below |
 | Reports | `/reports/*` | Managers only. See below |
@@ -100,16 +102,39 @@ pending -> confirmed -> preparing -> ready -> served -> paid
 ```
 
 - Each step can only be done by the roles that do it in practice: waiters confirm and serve,
-  chefs move orders through the kitchen, cashiers take payment, managers can do everything
+  chefs move orders through the kitchen, managers can do everything
+- `paid` is never set by hand, it happens when the bill is settled (see below)
 - `nextStatuses` on every order tells the frontend which buttons to show
 - The item list can be replaced until the kitchen starts, after that items can only be added
 - Paid and cancelled orders are read only
+
+### Bills and payments
+
+VAT and service charge come from `/restaurant`. The rates are copied onto the order when it's
+placed, so changing them later doesn't touch open orders. Service charge is only added to dine
+in orders and VAT is charged on top of it. Every order shows `subtotal`, `discountTotal`,
+`serviceCharge`, `vat`, `total`, `amountPaid` and `balanceDue`.
+
+- Cashiers and managers take payments with `POST /orders/{id}/payments`:
+  `{ "method": "cash" | "card" | "mobile", "amount"?, "tendered"?, "reference"? }`.
+  Leave out `amount` to pay whatever is left. For cash, `tendered` is what the customer
+  handed over and the change is worked out. Mobile payments (bKash, Nagad, ...) need the
+  transaction id as `reference`
+- A split bill is just several payments, paying more than what's left is refused
+- Once the bill is settled a served order becomes `paid` by itself. Takeaway paid at the
+  counter closes when it's handed over (`served`)
+- Managers give money back with `POST /orders/{id}/refunds` (needs a `reason`). An order that
+  still holds money can't be cancelled, refund it first
+- `GET /orders/{id}/receipt` returns a printable html bill (open order) or receipt (paid),
+  sized for 80mm thermal printers. Add `?print=true` to open the print dialog right away
 
 ### Dashboard and reports
 
 All money figures only count **paid** orders, and an order counts on the day it was paid.
 Days are restaurant days (`RESTAURANT_TZ`), so a sale at 00:30 belongs to that morning even
-though it's still the previous day in UTC. Profit is sales minus expenses.
+though it's still the previous day in UTC. Sales are what customers paid, profit is sales
+minus VAT, refunds and expenses. A refund counts on the day it was given, but only when the
+order was already paid (refunding a wrong payment before that isn't lost money).
 
 | Endpoint | What you get |
 | --- | --- |
