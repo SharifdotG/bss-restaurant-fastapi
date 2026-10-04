@@ -10,6 +10,7 @@ from app.api.v1 import (
     health,
     orders,
     payments,
+    public,
     reports,
     restaurant,
     tables,
@@ -20,6 +21,7 @@ from app.api.v1 import (
 api_router = APIRouter()
 api_router.include_router(health.router)
 api_router.include_router(auth.router)
+api_router.include_router(public.router)
 api_router.include_router(restaurant.router)
 api_router.include_router(users.router)
 api_router.include_router(uploads.router)
