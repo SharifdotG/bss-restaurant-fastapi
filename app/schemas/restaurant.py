@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, time
 from decimal import Decimal
 from typing import Annotated
 
@@ -27,6 +27,11 @@ class RestaurantOut(CamelModel):
     receipt_footer: str | None
     accepts_qr_orders: bool
     accepts_online_orders: bool
+    accepts_reservations: bool
+    auto_confirm_reservations: bool
+    reservation_minutes: int
+    opens_at: time
+    closes_at: time
     updated_at: datetime
 
 
@@ -43,3 +48,14 @@ class RestaurantUpdate(CamelModel):
     receipt_footer: str | None = Field(None, max_length=500)
     accepts_qr_orders: bool | None = None
     accepts_online_orders: bool | None = Field(None, description="Takeaway orders from the website")
+    accepts_reservations: bool | None = Field(None, description="Booking requests from the website")
+    auto_confirm_reservations: bool | None = Field(
+        None, description="Confirm website bookings by itself when a table is free"
+    )
+    reservation_minutes: int | None = Field(
+        None, ge=15, le=480, description="How long a table is kept for a booking"
+    )
+    opens_at: time | None = Field(None, description="Local time, e.g. 11:00")
+    closes_at: time | None = Field(
+        None, description="Before opensAt means open past midnight, the same time means 24 hours"
+    )

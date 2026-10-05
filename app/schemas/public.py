@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, time
 
 from pydantic import Field, computed_field
 
@@ -21,6 +21,10 @@ class PublicRestaurant(CamelModel):
     service_charge_percent: Percent
     accepts_qr_orders: bool
     accepts_online_orders: bool
+    accepts_reservations: bool
+    reservation_minutes: int
+    opens_at: time
+    closes_at: time
 
 
 class MenuFood(WithImage):
