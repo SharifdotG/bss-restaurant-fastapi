@@ -25,6 +25,8 @@ class RestaurantOut(CamelModel):
     vat_percent: Percent
     service_charge_percent: Percent
     receipt_footer: str | None
+    accepts_qr_orders: bool
+    accepts_online_orders: bool
     updated_at: datetime
 
 
@@ -39,3 +41,5 @@ class RestaurantUpdate(CamelModel):
     vat_percent: Percent | None = None
     service_charge_percent: Percent | None = Field(None, description="Only for dine in orders")
     receipt_footer: str | None = Field(None, max_length=500)
+    accepts_qr_orders: bool | None = None
+    accepts_online_orders: bool | None = Field(None, description="Takeaway orders from the website")

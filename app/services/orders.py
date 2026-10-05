@@ -15,6 +15,7 @@ from app.models import (
     Food,
     Order,
     OrderItem,
+    OrderSource,
     OrderStatus,
     OrderStatusEvent,
     OrderType,
@@ -193,32 +194,60 @@ async def _resolve_waiter(session: AsyncSession, actor: User, waiter_id: int | N
     )
 
 
-async def create_order(session: AsyncSession, actor: User, data: OrderCreate) -> Order:
-    if data.order_type == OrderType.DINE_IN:
-        await _check_table(session, data.table_id)
-    foods = await _load_foods(session, data.items)
+async def build_order(
+    session: AsyncSession,
+    *,
+    order_type: OrderType,
+    items: Sequence[OrderItemIn],
+    source: OrderSource = OrderSource.STAFF,
+    table_id: int | None = None,
+    waiter_id: int | None = None,
+    created_by_id: int | None = None,
+    customer_name: str | None = None,
+    customer_phone: str | None = None,
+    notes: str | None = None,
+) -> Order:
+    """A new pending order priced from the menu. Added to the session, not committed."""
+    foods = await _load_foods(session, items)
     restaurant = await get_restaurant(session)
     # service charge is for table service, takeaway doesn't pay it
-    dine_in = data.order_type == OrderType.DINE_IN
+    dine_in = order_type == OrderType.DINE_IN
 
     order = Order(
         order_number=await next_order_number(session),
+        order_type=order_type,
+        source=source,
+        table_id=table_id,
+        waiter_id=waiter_id,
+        created_by_id=created_by_id,
+        customer_name=customer_name,
+        customer_phone=customer_phone,
+        notes=notes,
+        status=OrderStatus.PENDING,
+        service_charge_rate=restaurant.service_charge_percent if dine_in else Decimal(0),
+        vat_rate=restaurant.vat_percent,
+    )
+    order.items = _build_items(items, foods)
+    order.history = [OrderStatusEvent(to_status=OrderStatus.PENDING, changed_by_id=created_by_id)]
+    _recalculate(order)
+    session.add(order)
+    return order
+
+
+async def create_order(session: AsyncSession, actor: User, data: OrderCreate) -> Order:
+    if data.order_type == OrderType.DINE_IN:
+        await _check_table(session, data.table_id)
+    order = await build_order(
+        session,
         order_type=data.order_type,
+        items=data.items,
         table_id=data.table_id,
         waiter_id=await _resolve_waiter(session, actor, data.waiter_id),
         created_by_id=actor.id,
         customer_name=data.customer_name,
         customer_phone=data.customer_phone,
         notes=data.notes,
-        status=OrderStatus.PENDING,
-        service_charge_rate=restaurant.service_charge_percent if dine_in else Decimal(0),
-        vat_rate=restaurant.vat_percent,
     )
-    order.items = _build_items(data.items, foods)
-    order.history = [OrderStatusEvent(to_status=OrderStatus.PENDING, changed_by_id=actor.id)]
-    _recalculate(order)
-
-    session.add(order)
     await session.commit()
     return await get_order(session, order.id)
 
@@ -277,6 +306,10 @@ async def change_status(
                 extra={"amountPaid": float(order.amount_paid)},
             )
         order.cancel_reason = note
+
+    # orders from the qr code or the website get the waiter who picked them up
+    if target == OrderStatus.CONFIRMED and order.waiter_id is None:
+        order.waiter_id = await _resolve_waiter(session, actor, None)
 
     order.status = target
     if order.is_closed:

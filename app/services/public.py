@@ -1,11 +1,16 @@
 from collections import defaultdict
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Category, Food
-from app.schemas.public import Menu, MenuCategory, MenuFood, PublicRestaurant
+from app.core.exceptions import ConflictError, NotFoundError
+from app.models import Category, DiningTable, Food, Order, OrderSource, OrderStatus, OrderType
+from app.schemas.public import Menu, MenuCategory, MenuFood, PublicOrderCreate, PublicRestaurant
+from app.services.orders import build_order, get_order
 from app.services.restaurant import get_restaurant
+
+# orders from one table nobody has confirmed yet, stops a prank from flooding the kitchen
+MAX_WAITING_QR_ORDERS = 3
 
 
 async def get_menu(session: AsyncSession) -> Menu:
@@ -40,3 +45,59 @@ async def get_menu(session: AsyncSession) -> Menu:
         ],
         uncategorized=by_category[None],
     )
+
+
+async def get_table(session: AsyncSession, qr_token: str, lock: bool = False) -> DiningTable:
+    stmt = select(DiningTable).where(
+        DiningTable.qr_token == qr_token, DiningTable.is_active.is_(True)
+    )
+    if lock:
+        stmt = stmt.with_for_update()
+    table = await session.scalar(stmt)
+    if table is None:
+        raise NotFoundError("This QR code doesn't work anymore, please ask a waiter")
+    return table
+
+
+async def get_public_order(session: AsyncSession, tracking_code: str) -> Order:
+    order_id = await session.scalar(select(Order.id).where(Order.tracking_code == tracking_code))
+    if order_id is None:
+        raise NotFoundError("Order not found")
+    return await get_order(session, order_id)
+
+
+async def place_table_order(session: AsyncSession, qr_token: str, data: PublicOrderCreate) -> Order:
+    """A customer ordering from the QR code on their table. Staff still confirm it."""
+    restaurant = await get_restaurant(session)
+    if not restaurant.accepts_qr_orders:
+        raise ConflictError(
+            "Ordering from the table is switched off, please ask a waiter",
+            code="qr_orders_disabled",
+        )
+    # locked so two phones at the same table can't both slip past the limit
+    table = await get_table(session, qr_token, lock=True)
+    waiting = await session.scalar(
+        select(func.count()).where(
+            Order.table_id == table.id,
+            Order.source == OrderSource.QR,
+            Order.status == OrderStatus.PENDING,
+        )
+    )
+    if waiting >= MAX_WAITING_QR_ORDERS:
+        raise ConflictError(
+            "This table already has orders waiting, a waiter will be with you shortly",
+            code="too_many_waiting_orders",
+        )
+
+    order = await build_order(
+        session,
+        order_type=OrderType.DINE_IN,
+        source=OrderSource.QR,
+        table_id=table.id,
+        items=data.items,
+        customer_name=data.customer_name,
+        customer_phone=data.customer_phone,
+        notes=data.notes,
+    )
+    await session.commit()
+    return await get_order(session, order.id)

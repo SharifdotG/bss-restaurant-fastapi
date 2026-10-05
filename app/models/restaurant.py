@@ -33,3 +33,6 @@ class Restaurant(TimestampMixin, Base):
     # only charged on dine in orders
     service_charge_percent: Mapped[Decimal] = mapped_column(Percent, default=Decimal(0))
     receipt_footer: Mapped[str | None] = mapped_column(String(500))
+    # customers ordering by themselves, from the qr code on the table or the website
+    accepts_qr_orders: Mapped[bool] = mapped_column(default=True, server_default="true")
+    accepts_online_orders: Mapped[bool] = mapped_column(default=False, server_default="false")
