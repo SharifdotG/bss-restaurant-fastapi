@@ -50,6 +50,8 @@ Everything is read from environment variables (or `.env`).
 | `DB_ECHO` | Log every SQL statement |
 | `CORS_ORIGINS` | Comma separated list of allowed frontend origins |
 | `DOCS_ENABLED` | Set to `false` to hide `/docs` and `/openapi.json` |
+| `RATE_LIMIT_ENABLED` | Login and public endpoints are rate limited per ip, default `true` |
+| `TRUSTED_PROXY_HOPS` | Number of proxies in front of the app, used to read the client ip from `X-Forwarded-For`. Default 0 (use the connection address) |
 | `SECRET_KEY` | Used to sign access tokens. Required outside `local` |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | Access token lifetime, default 15 |
 | `REFRESH_TOKEN_EXPIRE_DAYS` | Refresh token lifetime, default 7 |
@@ -67,6 +69,8 @@ Everything is read from environment variables (or `.env`).
 - Refresh tokens are single use. Using an old one again logs out that whole session, so
   only refresh once at a time on the client
 - `POST /auth/logout` ends one session, `POST /auth/logout-all` ends all of them
+- Logging in is rate limited: 20 attempts a minute per ip and 5 per 5 minutes for one
+  account from the same ip, after that the API answers 429 with a `Retry-After` header
 - Roles: `admin`, `manager`, `waiter`, `chef`, `cashier`. Managers can manage staff
   accounts but not admins or other managers
 
@@ -86,6 +90,7 @@ The Authorize button in `/docs` works too, put the email in the username field.
 | Payments | `/orders/{id}/payments`, `/orders/{id}/refunds`, `/orders/{id}/receipt` | See below |
 | Expenses | `/expenses` | Categorised, with an optional receipt photo |
 | Dashboard | `GET /dashboard` | Managers and cashiers. See below |
+| Public | `/public/*` | No login, for customer facing sites. See below |
 | Reports | `/reports/*` | Managers only. See below |
 
 ### Orders
@@ -127,6 +132,36 @@ in orders and VAT is charged on top of it. Every order shows `subtotal`, `discou
   still holds money can't be cancelled, refund it first
 - `GET /orders/{id}/receipt` returns a printable html bill (open order) or receipt (paid),
   sized for 80mm thermal printers. Add `?print=true` to open the print dialog right away
+
+### Customer ordering (public API)
+
+Everything under `/public` works without logging in, so a restaurant website or a QR code
+page can be built on top of it. Customers only ever send what they want, prices come from
+the menu like for staff orders.
+
+| Endpoint | What it does |
+| --- | --- |
+| `GET /public/restaurant` | Name, contact details, currency, VAT and service charge, which kinds of ordering are on |
+| `GET /public/menu` | Visible categories with their foods in one call. Sold out foods are included with `isAvailable: false` |
+| `GET /public/tables/{qrToken}` | The table behind a QR code |
+| `POST /public/tables/{qrToken}/orders` | Order from the table, `{ items, customerName?, customerPhone?, notes? }` |
+| `POST /public/orders` | Online takeaway, needs `customerName` and `customerPhone` |
+| `GET /public/orders/{trackingCode}` | Status, items and bill of an order |
+| `POST /public/orders/{trackingCode}/cancel` | Customers can cancel their own order while it's pending (`canCancel`) |
+
+- Every order has a `trackingCode` (staff orders too, so it can be printed or texted). It's
+  random on purpose, order numbers are easy to guess
+- QR and online orders wait as `pending` until staff confirm them, the waiter who confirms
+  becomes the order's waiter. `GET /orders?source=qr&source=online&status=pending` is the
+  "incoming" list
+- A table can have at most 3 unconfirmed QR orders and a phone number 3 unconfirmed online
+  orders, to keep pranks out of the kitchen. If a QR code leaks, `POST /tables/{id}/qr-token`
+  gives the table a new one
+- QR ordering is on and online ordering is off by default, see `acceptsQrOrders` and
+  `acceptsOnlineOrders` on `/restaurant`
+- Placing and cancelling orders is limited to 10 requests per 10 minutes per ip, reading
+  to 120 a minute. The limiter is in memory, so with more than one instance each one counts
+  on its own
 
 ### Dashboard and reports
 
