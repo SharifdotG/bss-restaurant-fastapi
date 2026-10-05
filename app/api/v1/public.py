@@ -3,7 +3,14 @@ from fastapi import APIRouter, Depends, Response, status
 from app.api.deps import SessionDep
 from app.core.ratelimit import rate_limit
 from app.models import DiningTable, Order, Restaurant
-from app.schemas.public import Menu, PublicOrder, PublicOrderCreate, PublicRestaurant, PublicTable
+from app.schemas.public import (
+    Menu,
+    OnlineOrderCreate,
+    PublicOrder,
+    PublicOrderCreate,
+    PublicRestaurant,
+    PublicTable,
+)
 from app.services import public as public_service
 from app.services.restaurant import get_restaurant
 
@@ -50,3 +57,28 @@ async def order_from_table(qr_token: str, body: PublicOrderCreate, session: Sess
     """Orders from the QR code on the table. The order waits as pending until a waiter
     confirms it, keep the `trackingCode` to follow it."""
     return await public_service.place_table_order(session, qr_token, body)
+
+
+@router.post(
+    "/orders",
+    response_model=PublicOrder,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[OrderLimit],
+)
+async def order_online(body: OnlineOrderCreate, session: SessionDep) -> Order:
+    """Takeaway from the website, only when the restaurant has online orders switched on."""
+    return await public_service.place_online_order(session, body)
+
+
+@router.get("/orders/{tracking_code}", response_model=PublicOrder)
+async def track_order(tracking_code: str, session: SessionDep) -> Order:
+    """Status, items and bill of an order. Works for any order, staff can hand out the code."""
+    return await public_service.get_public_order(session, tracking_code)
+
+
+@router.post(
+    "/orders/{tracking_code}/cancel", response_model=PublicOrder, dependencies=[OrderLimit]
+)
+async def cancel_order(tracking_code: str, session: SessionDep) -> Order:
+    """Only while the order is still pending and nothing was paid, see `canCancel`."""
+    return await public_service.cancel_public_order(session, tracking_code)

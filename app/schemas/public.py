@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import Field
+from pydantic import Field, computed_field
 
 from app.models.menu import DiscountType
 from app.models.order import OrderSource, OrderStatus, OrderType
@@ -64,6 +64,13 @@ class PublicOrderCreate(CamelModel):
     notes: str | None = Field(None, max_length=500)
 
 
+class OnlineOrderCreate(PublicOrderCreate):
+    """Takeaway from the website, the restaurant needs to know who to call."""
+
+    customer_name: str = Field(min_length=1, max_length=100)
+    customer_phone: Phone
+
+
 class PublicOrderItem(CamelModel):
     food_name: str
     quantity: int
@@ -98,3 +105,14 @@ class PublicOrder(CamelModel):
     cancel_reason: str | None
     history: list[PublicStatusStep]
     created_at: datetime
+
+    @computed_field
+    @property
+    def can_cancel(self) -> bool:
+        # only their own orders, and once the restaurant accepted it or money changed
+        # hands the staff have to do it
+        return (
+            self.source != OrderSource.STAFF
+            and self.status == OrderStatus.PENDING
+            and self.amount_paid == 0
+        )
