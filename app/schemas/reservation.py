@@ -1,7 +1,7 @@
 from datetime import date, datetime
-from typing import Annotated
+from typing import Annotated, Self
 
-from pydantic import AwareDatetime, EmailStr, Field
+from pydantic import AwareDatetime, EmailStr, Field, model_validator
 
 from app.models.reservation import ReservationSource, ReservationStatus
 from app.schemas.common import CamelModel, ListParams
@@ -22,6 +22,33 @@ class ReservationCreate(CamelModel):
     customer_phone: Phone
     customer_email: EmailStr | None = None
     notes: str | None = Field(None, max_length=500, description="e.g. birthday, high chair")
+
+
+class ReservationUpdate(CamelModel):
+    """Only while the booking is requested or confirmed, the table is checked again."""
+
+    starts_at: AwareDatetime | None = None
+    minutes: Minutes | None = None
+    party_size: PartySize | None = None
+    table_id: int | None = None
+    customer_name: CustomerName | None = None
+    customer_phone: Phone | None = None
+    customer_email: EmailStr | None = None
+    notes: str | None = Field(None, max_length=500)
+
+
+class ReservationStatusChange(CamelModel):
+    status: ReservationStatus
+    table_id: int | None = Field(
+        None, description="When confirming, leave out to keep the table or get a free one"
+    )
+    note: str | None = Field(None, max_length=255, description="Required to cancel or decline")
+
+    @model_validator(mode="after")
+    def _table_only_when_confirming(self) -> Self:
+        if self.table_id is not None and self.status != ReservationStatus.CONFIRMED:
+            raise ValueError("a table can only be given when confirming")
+        return self
 
 
 class ReservationOut(CamelModel):

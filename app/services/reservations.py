@@ -15,6 +15,7 @@ from app.models import (
     ReservationStatus,
     User,
 )
+from app.models.reservation import NEXT_STATUSES
 from app.schemas.common import Page
 from app.schemas.reservation import (
     Availability,
@@ -23,12 +24,18 @@ from app.schemas.reservation import (
     ReservationCreate,
     ReservationListParams,
     ReservationOut,
+    ReservationStatusChange,
+    ReservationUpdate,
 )
 from app.services.common import commit_or_conflict
 from app.services.restaurant import get_restaurant
 
 # a booking a few minutes in the past is fine, guests are standing at the door
 PAST_GRACE = timedelta(minutes=15)
+
+# what can still be changed, once guests sit down it's an order's business
+EDITABLE = (ReservationStatus.REQUESTED, ReservationStatus.CONFIRMED)
+NULLABLE_FIELDS = {"customer_email", "notes"}
 
 RESERVATION_SORTS = {
     "startsAt": Reservation.starts_at,
@@ -200,5 +207,79 @@ async def create_reservation(
     )
     await assign_table(session, reservation, data.table_id)
     session.add(reservation)
+    await save_booking(session)
+    return await get_reservation(session, reservation.id)
+
+
+async def _lock(session: AsyncSession, reservation_id: int) -> Reservation:
+    reservation = await session.scalar(
+        select(Reservation).where(Reservation.id == reservation_id).with_for_update()
+    )
+    if reservation is None:
+        raise NotFoundError("Reservation not found")
+    return reservation
+
+
+async def update_reservation(
+    session: AsyncSession, reservation_id: int, data: ReservationUpdate
+) -> Reservation:
+    reservation = await _lock(session, reservation_id)
+    if reservation.status not in EDITABLE:
+        raise ConflictError(
+            f"A {reservation.status} booking can't be changed anymore", code="reservation_closed"
+        )
+
+    changes = {
+        field: value
+        for field, value in data.model_dump(exclude_unset=True).items()
+        if value is not None or field in NULLABLE_FIELDS
+    }
+    table_id = changes.pop("table_id", None)
+    minutes = changes.pop("minutes", reservation.minutes)
+    if "starts_at" in changes:
+        _check_not_past(changes["starts_at"])
+    for field, value in changes.items():
+        setattr(reservation, field, value)
+    reservation.ends_at = reservation.starts_at + timedelta(minutes=minutes)
+
+    if reservation.status == ReservationStatus.CONFIRMED:
+        # same table unless another one was asked for, it has to fit the new time and size
+        await assign_table(session, reservation, table_id or reservation.table_id)
+    elif table_id is not None:
+        await assign_table(session, reservation, table_id)
+    await save_booking(session)
+    return await get_reservation(session, reservation.id)
+
+
+async def change_status(
+    session: AsyncSession, reservation_id: int, data: ReservationStatusChange
+) -> Reservation:
+    reservation = await _lock(session, reservation_id)
+    current, target = reservation.status, data.status
+    if target not in NEXT_STATUSES[current]:
+        raise ConflictError(
+            f"A booking can't go from {current} to {target}",
+            code="invalid_status_change",
+            extra={"allowed": list(NEXT_STATUSES[current])},
+        )
+
+    note = data.note.strip() if data.note else None
+    match target:
+        case ReservationStatus.CONFIRMED:
+            if reservation.ends_at <= utcnow():
+                raise ConflictError("This booking is already over", code="reservation_in_past")
+            await assign_table(session, reservation, data.table_id or reservation.table_id)
+        case ReservationStatus.CANCELLED | ReservationStatus.DECLINED:
+            if not note:
+                raise BadRequestError("Give a reason, the customer sees it", code="reason_required")
+            reservation.cancel_reason = note
+        case ReservationStatus.NO_SHOW:
+            if reservation.starts_at > utcnow():
+                raise ConflictError(
+                    "The booking hasn't started yet, the guests can still come",
+                    code="too_early",
+                )
+
+    reservation.status = target
     await save_booking(session)
     return await get_reservation(session, reservation.id)

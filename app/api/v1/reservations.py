@@ -11,6 +11,8 @@ from app.schemas.reservation import (
     ReservationCreate,
     ReservationListParams,
     ReservationOut,
+    ReservationStatusChange,
+    ReservationUpdate,
 )
 from app.services import reservations as reservation_service
 
@@ -49,3 +51,20 @@ async def create_reservation(
 @router.get("/{reservation_id}", response_model=ReservationOut)
 async def get_reservation(reservation_id: int, session: SessionDep, _: CurrentUser) -> Reservation:
     return await reservation_service.get_reservation(session, reservation_id)
+
+
+@router.patch("/{reservation_id}", response_model=ReservationOut)
+async def update_reservation(
+    reservation_id: int, body: ReservationUpdate, session: SessionDep, _: FrontOfHouse
+) -> Reservation:
+    """Move a booking or change the party size, the table has to fit the new time."""
+    return await reservation_service.update_reservation(session, reservation_id, body)
+
+
+@router.post("/{reservation_id}/status", response_model=ReservationOut)
+async def change_status(
+    reservation_id: int, body: ReservationStatusChange, session: SessionDep, _: FrontOfHouse
+) -> Reservation:
+    """requested > confirmed (or declined) > seated > completed. Confirmed bookings can
+    also be cancelled, or marked no show once the time has passed."""
+    return await reservation_service.change_status(session, reservation_id, body)
