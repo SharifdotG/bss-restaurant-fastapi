@@ -15,12 +15,19 @@ from app.models.order import (
 )
 from app.models.payment import Payment, PaymentKind, PaymentMethod
 from app.models.refresh_token import RefreshToken
+from app.models.reservation import (
+    HOLDS_TABLE,
+    Reservation,
+    ReservationSource,
+    ReservationStatus,
+)
 from app.models.restaurant import RESTAURANT_ID, Restaurant
 from app.models.table import DiningTable, TableAssignment
 from app.models.user import User, UserRole
 
 __all__ = [
     "ACTIVE_STATUSES",
+    "HOLDS_TABLE",
     "Base",
     "Category",
     "DiningTable",
@@ -42,6 +49,9 @@ __all__ = [
     "PaymentMethod",
     "RESTAURANT_ID",
     "RefreshToken",
+    "Reservation",
+    "ReservationSource",
+    "ReservationStatus",
     "Restaurant",
     "TableAssignment",
     "User",

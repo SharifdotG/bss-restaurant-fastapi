@@ -152,6 +152,6 @@ async def delete_table(session: AsyncSession, table: DiningTable) -> None:
     except IntegrityError:
         await session.rollback()
         raise ConflictError(
-            "This table has orders, deactivate it instead", code="table_in_use"
+            "This table has orders or bookings, deactivate it instead", code="table_in_use"
         ) from None
     await delete_image(table.image_key)
