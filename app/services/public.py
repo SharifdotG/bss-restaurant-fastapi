@@ -1,11 +1,13 @@
 from collections import defaultdict
+from datetime import date, datetime, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import ConflictError, NotFoundError
-from app.core.timeutils import utcnow
+from app.core.exceptions import BadRequestError, ConflictError, NotFoundError
+from app.core.timeutils import business_date, is_open_between, opening_window, utcnow
 from app.models import (
+    HOLDS_TABLE,
     Category,
     DiningTable,
     Food,
@@ -14,6 +16,10 @@ from app.models import (
     OrderStatus,
     OrderStatusEvent,
     OrderType,
+    Reservation,
+    ReservationSource,
+    ReservationStatus,
+    Restaurant,
 )
 from app.schemas.public import (
     Menu,
@@ -21,9 +27,13 @@ from app.schemas.public import (
     MenuFood,
     OnlineOrderCreate,
     PublicOrderCreate,
+    PublicReservationCreate,
     PublicRestaurant,
+    Slot,
+    Slots,
 )
 from app.services.orders import build_order, get_order
+from app.services.reservations import free_tables, get_reservation, save_booking
 from app.services.restaurant import get_restaurant
 
 # orders from one table nobody has confirmed yet, stops a prank from flooding the kitchen
@@ -31,6 +41,15 @@ MAX_WAITING_QR_ORDERS = 3
 # same idea for website orders, per phone number
 MAX_WAITING_ONLINE_ORDERS = 3
 CUSTOMER_CANCELLED = "Cancelled by the customer"
+
+# website bookings start on the half hour from opening time
+SLOT_MINUTES = 30
+# the kitchen likes to know a bit ahead, later than that people should call
+MIN_NOTICE = timedelta(hours=1)
+MAX_DAYS_AHEAD = 60
+# upcoming bookings per phone number, so nobody books every table for fun
+MAX_UPCOMING_BOOKINGS = 3
+CUSTOMER_CAN_CANCEL = (ReservationStatus.REQUESTED, ReservationStatus.CONFIRMED)
 
 
 async def get_menu(session: AsyncSession) -> Menu:
@@ -186,3 +205,136 @@ async def cancel_public_order(session: AsyncSession, tracking_code: str) -> Orde
     order.closed_at = utcnow()
     await session.commit()
     return await get_order(session, order.id)
+
+
+async def _accepting_bookings(session: AsyncSession) -> Restaurant:
+    restaurant = await get_restaurant(session)
+    if not restaurant.accepts_reservations:
+        raise ConflictError(
+            "Online booking is switched off, please call us", code="reservations_disabled"
+        )
+    return restaurant
+
+
+async def available_slots(session: AsyncSession, day: date, party_size: int) -> Slots:
+    """Start times on a day with at least one table free for the party."""
+    restaurant = await _accepting_bookings(session)
+    length = timedelta(minutes=restaurant.reservation_minutes)
+    open_at, close_at = opening_window(day, restaurant.opens_at, restaurant.closes_at)
+    earliest = utcnow() + MIN_NOTICE
+    result = Slots(day=day, party_size=party_size, minutes=restaurant.reservation_minutes, slots=[])
+    if day < business_date() or day > business_date() + timedelta(days=MAX_DAYS_AHEAD):
+        return result
+
+    tables = list(
+        await session.scalars(
+            select(DiningTable.id).where(
+                DiningTable.is_active.is_(True), DiningTable.seats >= party_size
+            )
+        )
+    )
+    booked: dict[int, list[tuple[datetime, datetime]]] = defaultdict(list)
+    rows = await session.execute(
+        select(Reservation.table_id, Reservation.starts_at, Reservation.ends_at).where(
+            Reservation.table_id.in_(tables),
+            Reservation.status.in_(HOLDS_TABLE),
+            Reservation.starts_at < close_at,
+            Reservation.ends_at > open_at,
+        )
+    )
+    for table_id, starts_at, ends_at in rows:
+        booked[table_id].append((starts_at, ends_at))
+
+    def is_free(table_id: int, start: datetime, end: datetime) -> bool:
+        return all(not (s < end and e > start) for s, e in booked[table_id])
+
+    start = open_at
+    while start + length <= close_at:
+        end = start + length
+        if start >= earliest and any(is_free(t, start, end) for t in tables):
+            result.slots.append(Slot(starts_at=start, ends_at=end))
+        start += timedelta(minutes=SLOT_MINUTES)
+    return result
+
+
+async def request_reservation(session: AsyncSession, data: PublicReservationCreate) -> Reservation:
+    """A booking from the website. Staff confirm it, unless the restaurant lets free
+    tables be given out straight away."""
+    restaurant = await _accepting_bookings(session)
+    starts_at = data.starts_at
+    ends_at = starts_at + timedelta(minutes=restaurant.reservation_minutes)
+    now = utcnow()
+    if starts_at < now + MIN_NOTICE:
+        raise BadRequestError(
+            "That's too soon to book online, please call us", code="too_short_notice"
+        )
+    if starts_at > now + timedelta(days=MAX_DAYS_AHEAD):
+        raise BadRequestError(f"Bookings open {MAX_DAYS_AHEAD} days ahead", code="too_far_ahead")
+    if not is_open_between(starts_at, ends_at, restaurant.opens_at, restaurant.closes_at):
+        raise BadRequestError(
+            "We're closed at that time",
+            code="outside_opening_hours",
+            extra={
+                "opensAt": restaurant.opens_at.isoformat(),
+                "closesAt": restaurant.closes_at.isoformat(),
+            },
+        )
+
+    upcoming = await session.scalar(
+        select(func.count()).where(
+            Reservation.customer_phone == data.customer_phone,
+            Reservation.status.in_(CUSTOMER_CAN_CANCEL),
+            Reservation.ends_at > now,
+        )
+    )
+    if upcoming >= MAX_UPCOMING_BOOKINGS:
+        raise ConflictError(
+            "You already have bookings coming up, please call us for more",
+            code="too_many_bookings",
+        )
+
+    tables = await free_tables(session, starts_at, ends_at, data.party_size)
+    if not tables:
+        raise ConflictError(
+            f"No table for {data.party_size} is free then, please try another time",
+            code="no_table_available",
+        )
+
+    reservation = Reservation(
+        source=ReservationSource.ONLINE,
+        status=ReservationStatus.REQUESTED,
+        ends_at=ends_at,
+        **data.model_dump(),
+    )
+    if restaurant.auto_confirm_reservations:
+        reservation.status = ReservationStatus.CONFIRMED
+        reservation.table_id = tables[0].id
+    session.add(reservation)
+    await save_booking(session)
+    return await get_reservation(session, reservation.id)
+
+
+async def get_public_reservation(session: AsyncSession, tracking_code: str) -> Reservation:
+    reservation_id = await session.scalar(
+        select(Reservation.id).where(Reservation.tracking_code == tracking_code)
+    )
+    if reservation_id is None:
+        raise NotFoundError("Booking not found")
+    return await get_reservation(session, reservation_id)
+
+
+async def cancel_public_reservation(session: AsyncSession, tracking_code: str) -> Reservation:
+    reservation = await session.scalar(
+        select(Reservation).where(Reservation.tracking_code == tracking_code).with_for_update()
+    )
+    if reservation is None:
+        raise NotFoundError("Booking not found")
+    if reservation.status not in CUSTOMER_CAN_CANCEL or reservation.starts_at <= utcnow():
+        raise ConflictError(
+            "This booking can't be cancelled anymore, please call us", code="cancel_not_allowed"
+        )
+
+    reservation.status = ReservationStatus.CANCELLED
+    reservation.cancel_reason = CUSTOMER_CANCELLED
+    await session.commit()
+    return await get_reservation(session, reservation.id)

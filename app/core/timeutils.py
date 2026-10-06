@@ -38,3 +38,21 @@ def day_bounds(day: date) -> tuple[datetime, datetime]:
 def range_bounds(start_day: date, end_day: date) -> tuple[datetime, datetime]:
     """[start of start_day, end of end_day) in UTC, both days included."""
     return day_bounds(start_day)[0], day_bounds(end_day)[1]
+
+
+def opening_window(day: date, opens: time, closes: time) -> tuple[datetime, datetime]:
+    """When the restaurant is open on a local day. Closing at or before the opening time
+    means it closes after midnight, the same time means it never closes."""
+    start = datetime.combine(day, opens, tzinfo=restaurant_tz())
+    end_day = day if closes > opens else day + timedelta(days=1)
+    return start, datetime.combine(end_day, closes, tzinfo=restaurant_tz())
+
+
+def is_open_between(starts_at: datetime, ends_at: datetime, opens: time, closes: time) -> bool:
+    day = business_date(starts_at)
+    # the window of the day before matters for places open past midnight
+    for window_day in (day, day - timedelta(days=1)):
+        open_at, close_at = opening_window(window_day, opens, closes)
+        if open_at <= starts_at and ends_at <= close_at:
+            return True
+    return False

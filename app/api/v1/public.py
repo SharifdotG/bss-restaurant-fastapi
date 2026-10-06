@@ -1,15 +1,21 @@
-from fastapi import APIRouter, Depends, Response, status
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, Query, Response, status
 
 from app.api.deps import SessionDep
 from app.core.ratelimit import rate_limit
-from app.models import DiningTable, Order, Restaurant
+from app.models import DiningTable, Order, Reservation, Restaurant
 from app.schemas.public import (
     Menu,
     OnlineOrderCreate,
     PublicOrder,
     PublicOrderCreate,
+    PublicReservation,
+    PublicReservationCreate,
     PublicRestaurant,
     PublicTable,
+    SlotParams,
+    Slots,
 )
 from app.services import public as public_service
 from app.services.restaurant import get_restaurant
@@ -23,6 +29,7 @@ router = APIRouter(
 
 # placing orders is limited much harder than reading the menu
 OrderLimit = Depends(rate_limit("public-orders", limit=10, window=600))
+BookingLimit = Depends(rate_limit("public-bookings", limit=10, window=600))
 
 # the menu doesn't change every second, let browsers and cdns keep it for a bit
 CACHE_FOR_A_MINUTE = "public, max-age=60"
@@ -82,3 +89,36 @@ async def track_order(tracking_code: str, session: SessionDep) -> Order:
 async def cancel_order(tracking_code: str, session: SessionDep) -> Order:
     """Only while the order is still pending and nothing was paid, see `canCancel`."""
     return await public_service.cancel_public_order(session, tracking_code)
+
+
+@router.get("/reservations/slots", response_model=Slots)
+async def booking_slots(params: Annotated[SlotParams, Query()], session: SessionDep) -> Slots:
+    """Times a party can book on a day, empty when the day is full or too far ahead."""
+    return await public_service.available_slots(session, params.day, params.party_size)
+
+
+@router.post(
+    "/reservations",
+    response_model=PublicReservation,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[BookingLimit],
+)
+async def book_table(body: PublicReservationCreate, session: SessionDep) -> Reservation:
+    """Asks for a table, `status` says whether the restaurant still has to confirm it.
+    Keep the `trackingCode` to check on it or cancel."""
+    return await public_service.request_reservation(session, body)
+
+
+@router.get("/reservations/{tracking_code}", response_model=PublicReservation)
+async def track_booking(tracking_code: str, session: SessionDep) -> Reservation:
+    return await public_service.get_public_reservation(session, tracking_code)
+
+
+@router.post(
+    "/reservations/{tracking_code}/cancel",
+    response_model=PublicReservation,
+    dependencies=[BookingLimit],
+)
+async def cancel_booking(tracking_code: str, session: SessionDep) -> Reservation:
+    """Until the booking time, see `canCancel`."""
+    return await public_service.cancel_public_reservation(session, tracking_code)

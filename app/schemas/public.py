@@ -1,11 +1,15 @@
-from datetime import datetime, time
+from datetime import date, datetime, time
+from typing import Annotated
 
-from pydantic import Field, computed_field
+from pydantic import AwareDatetime, EmailStr, Field, computed_field
 
+from app.core.timeutils import utcnow
 from app.models.menu import DiscountType
 from app.models.order import OrderSource, OrderStatus, OrderType
+from app.models.reservation import ReservationStatus
 from app.schemas.common import CamelModel, Money, WithImage
 from app.schemas.order import OrderItemIn
+from app.schemas.reservation import CustomerName
 from app.schemas.restaurant import Percent
 from app.schemas.user import Phone
 
@@ -119,4 +123,55 @@ class PublicOrder(CamelModel):
             self.source != OrderSource.STAFF
             and self.status == OrderStatus.PENDING
             and self.amount_paid == 0
+        )
+
+
+# bigger groups should call, they usually need tables pushed together
+OnlinePartySize = Annotated[int, Field(ge=1, le=20)]
+
+
+class SlotParams(CamelModel):
+    day: date = Field(description="Restaurant local date")
+    party_size: OnlinePartySize
+
+
+class Slot(CamelModel):
+    starts_at: datetime
+    ends_at: datetime
+
+
+class Slots(CamelModel):
+    day: date
+    party_size: int
+    minutes: int
+    slots: list[Slot] = Field(description="Start times with at least one table free")
+
+
+class PublicReservationCreate(CamelModel):
+    starts_at: AwareDatetime = Field(description="Usually one of the slots")
+    party_size: OnlinePartySize
+    customer_name: CustomerName
+    customer_phone: Phone
+    customer_email: EmailStr | None = None
+    notes: str | None = Field(None, max_length=500, description="e.g. birthday, high chair")
+
+
+class PublicReservation(CamelModel):
+    tracking_code: str
+    status: ReservationStatus
+    party_size: int
+    starts_at: datetime
+    ends_at: datetime
+    table: PublicTable | None
+    customer_name: str
+    notes: str | None
+    cancel_reason: str | None
+    created_at: datetime
+
+    @computed_field
+    @property
+    def can_cancel(self) -> bool:
+        return (
+            self.status in (ReservationStatus.REQUESTED, ReservationStatus.CONFIRMED)
+            and self.starts_at > utcnow()
         )
