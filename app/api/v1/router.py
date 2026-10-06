@@ -12,6 +12,7 @@ from app.api.v1 import (
     payments,
     public,
     reports,
+    reservations,
     restaurant,
     tables,
     uploads,
@@ -31,6 +32,7 @@ api_router.include_router(tables.router)
 api_router.include_router(employees.router)
 api_router.include_router(orders.router)
 api_router.include_router(payments.router)
+api_router.include_router(reservations.router)
 api_router.include_router(expenses.router)
 api_router.include_router(dashboard.router)
 api_router.include_router(reports.router)
