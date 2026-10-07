@@ -27,3 +27,9 @@ SessionLocal = async_sessionmaker(engine, expire_on_commit=False, autoflush=Fals
 async def get_session() -> AsyncIterator[AsyncSession]:
     async with SessionLocal() as session:
         yield session
+
+
+def get_sessionmaker() -> async_sessionmaker[AsyncSession]:
+    """For websockets, which only need a session for a moment now and then. A session
+    held for the whole connection would sit on a pooled connection for hours."""
+    return SessionLocal

@@ -27,7 +27,7 @@ from sqlalchemy.ext.asyncio import (  # noqa: E402
 )
 
 from app.core.config import settings, to_asyncpg_url  # noqa: E402
-from app.core.database import get_session  # noqa: E402
+from app.core.database import get_session, get_sessionmaker  # noqa: E402
 from app.core.ratelimit import limiter  # noqa: E402
 from app.core.security import create_access_token, hash_password  # noqa: E402
 from app.main import app  # noqa: E402
@@ -80,6 +80,7 @@ async def _override_session() -> AsyncIterator[AsyncSession]:
 
 
 app.dependency_overrides[get_session] = _override_session
+app.dependency_overrides[get_sessionmaker] = lambda: TestSession
 
 
 @pytest.fixture(autouse=True)

@@ -8,6 +8,7 @@ from app.api.v1 import (
     expenses,
     foods,
     health,
+    live,
     orders,
     payments,
     public,
@@ -36,3 +37,4 @@ api_router.include_router(reservations.router)
 api_router.include_router(expenses.router)
 api_router.include_router(dashboard.router)
 api_router.include_router(reports.router)
+api_router.include_router(live.router)
