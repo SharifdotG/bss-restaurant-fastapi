@@ -80,7 +80,7 @@ The Authorize button in `/docs` works too, put the email in the username field.
 
 | Area | Endpoints | Notes |
 | --- | --- | --- |
-| Restaurant | `/restaurant` | Name and details for receipts, currency, VAT and service charge |
+| Restaurant | `/restaurant` | Name and details for receipts, currency, VAT and service charge, opening hours and booking settings |
 | Users | `/users` | Admins and managers manage staff accounts, nothing is hard deleted |
 | Uploads | `POST /uploads/images` | Upload first, then send the returned `key` as `imageKey`. Images are checked, resized and stored as webp |
 | Menu | `/categories`, `/foods` | Discounts are percentage or flat, the final price is always calculated by the server. Chefs can mark food as sold out |
@@ -88,6 +88,7 @@ The Authorize button in `/docs` works too, put the email in the username field.
 | Employees | `/employees` | HR details, optionally with a login account created in the same request |
 | Orders | `/orders` | See below |
 | Payments | `/orders/{id}/payments`, `/orders/{id}/refunds`, `/orders/{id}/receipt` | See below |
+| Reservations | `/reservations` | See below |
 | Expenses | `/expenses` | Categorised, with an optional receipt photo |
 | Dashboard | `GET /dashboard` | Managers and cashiers. See below |
 | Public | `/public/*` | No login, for customer facing sites. See below |
@@ -148,6 +149,10 @@ the menu like for staff orders.
 | `POST /public/orders` | Online takeaway, needs `customerName` and `customerPhone` |
 | `GET /public/orders/{trackingCode}` | Status, items and bill of an order |
 | `POST /public/orders/{trackingCode}/cancel` | Customers can cancel their own order while it's pending (`canCancel`) |
+| `GET /public/reservations/slots?day=&partySize=` | Times on a day a party can book, see Reservations |
+| `POST /public/reservations` | Book a table, `{ startsAt, partySize, customerName, customerPhone, customerEmail?, notes? }` |
+| `GET /public/reservations/{trackingCode}` | Status and table of a booking |
+| `POST /public/reservations/{trackingCode}/cancel` | Until the booking time (`canCancel`) |
 
 - Every order has a `trackingCode` (staff orders too, so it can be printed or texted). It's
   random on purpose, order numbers are easy to guess
@@ -159,9 +164,50 @@ the menu like for staff orders.
   gives the table a new one
 - QR ordering is on and online ordering is off by default, see `acceptsQrOrders` and
   `acceptsOnlineOrders` on `/restaurant`
-- Placing and cancelling orders is limited to 10 requests per 10 minutes per ip, reading
+- Placing and cancelling orders (and bookings, counted separately) is limited to 10
+  requests per 10 minutes per ip, reading
   to 120 a minute. The limiter is in memory, so with more than one instance each one counts
   on its own
+
+### Reservations
+
+A booking holds one table from `startsAt` for the restaurant's `reservationMinutes`
+(90 by default, or `minutes` per booking).
+
+```
+requested ──> confirmed ──> seated ──> completed
+   │              │
+   │              ├──> no_show
+   │              └──> cancelled
+   ├──> declined
+   └──> cancelled
+```
+
+- Staff bookings (`POST /reservations`) are confirmed straight away. Leave out `tableId` and
+  the smallest free table that fits is picked, so a couple doesn't end up at the table for
+  eight. `GET /reservations/availability?startsAt=&partySize=` lists the free tables
+- Only `confirmed` and `seated` bookings hold a table. Postgres refuses overlapping bookings
+  of one table with an exclusion constraint (`btree_gist`), so two people booking the last
+  table at the same moment can't both get it. A booking ending at 20:30 and one starting at
+  20:30 don't overlap
+- Moving a booking (`PATCH /reservations/{id}`) checks its table again for the new time and
+  party size. Seated and finished bookings can't be changed
+- Cancelling and declining need a `note`, the customer sees it. `no_show` only once the
+  booking time has passed
+- `GET /reservations?dateFrom=2026-10-10` is the day's list, sorted by time.
+  `?status=requested` shows website bookings waiting for an answer
+
+Website bookings are off until a manager sets `acceptsReservations` on `/restaurant`:
+
+- `GET /public/reservations/slots` gives the start times (every 30 minutes from opening)
+  with at least one table free. `opensAt`/`closesAt` are local times, a closing time before
+  the opening time means open past midnight
+- Bookings must be at least an hour ahead, at most 60 days ahead, inside opening hours and
+  for up to 20 people. Bigger groups should call
+- A phone number can have 3 upcoming bookings
+- They come in as `requested` without a table, staff confirm them (a table is picked if none
+  is given). With `autoConfirmReservations` a free table is given out straight away instead
+- Customers can cancel with the `trackingCode` until the booking starts
 
 ### Dashboard and reports
 
@@ -173,7 +219,7 @@ order was already paid (refunding a wrong payment before that isn't lost money).
 
 | Endpoint | What you get |
 | --- | --- |
-| `GET /dashboard` | Today, this month, this year and all time (orders, sales, expenses, profit, average order), open orders per status, table occupancy, recent orders, best sellers this month |
+| `GET /dashboard` | Today, this month, this year and all time (orders, sales, expenses, profit, average order), open orders per status, table occupancy, today's bookings and guests, booking requests waiting, recent orders, best sellers this month |
 | `GET /reports/sales` | One row per `groupBy=day\|week\|month\|year`, days without sales included so charts have no holes |
 | `GET /reports/top-foods` | Best sellers, optional `categoryId` and `limit` |
 | `GET /reports/staff` | Orders, items and sales per waiter |
@@ -200,6 +246,9 @@ uv run alembic upgrade head
 ```
 
 New models need to be imported in `app/models/__init__.py` so autogenerate can see them.
+
+The reservations migration turns on the `btree_gist` extension, Neon and the postgres
+image in `compose.yaml` both have it.
 
 ## Project layout
 
