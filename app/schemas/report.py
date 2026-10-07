@@ -167,6 +167,12 @@ class MenuStats(CamelModel):
     available: int
 
 
+class ReservationStats(CamelModel):
+    today: int = Field(description="Confirmed, seated or done, starting today")
+    guests_today: int
+    requests: int = Field(description="Website bookings waiting for staff to confirm")
+
+
 class RecentOrder(CamelModel):
     id: int
     order_number: str
@@ -189,5 +195,6 @@ class Dashboard(CamelModel):
     tables: TableStats
     active_employees: int
     menu: MenuStats
+    reservations: ReservationStats
     recent_orders: list[RecentOrder]
     top_foods_this_month: list[TopFood]

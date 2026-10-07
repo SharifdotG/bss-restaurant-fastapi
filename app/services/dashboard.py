@@ -2,7 +2,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from app.core.timeutils import business_date, day_bounds
+from app.core.timeutils import business_date, day_bounds, utcnow
 from app.models import (
     ACTIVE_STATUSES,
     DiningTable,
@@ -12,17 +12,24 @@ from app.models import (
     Order,
     OrderStatus,
     Payment,
+    Reservation,
+    ReservationStatus,
 )
 from app.schemas.report import (
     Dashboard,
     MenuStats,
     OpenOrders,
     RecentOrder,
+    ReservationStats,
     TableStats,
 )
 from app.services.reports import refunds_after_sale, summarize, top_foods
 
 PERIODS = ("today", "this_month", "this_year", "all_time")
+
+
+# bookings that are happening, not cancelled or no shows
+BOOKED = (ReservationStatus.CONFIRMED, ReservationStatus.SEATED, ReservationStatus.COMPLETED)
 
 
 def _count(*criteria):
@@ -75,6 +82,11 @@ async def get_dashboard(session: AsyncSession) -> Dashboard:
     refund_columns.append(func.sum(Payment.amount).label("all_time"))
     refunds = (await session.execute(refunds_after_sale(*refund_columns))).one()._mapping
 
+    booked_today = (
+        Reservation.status.in_(BOOKED),
+        Reservation.starts_at >= today_start,
+        Reservation.starts_at < today_end,
+    )
     counts = (
         await session.execute(
             select(
@@ -83,6 +95,15 @@ async def get_dashboard(session: AsyncSession) -> Dashboard:
                 _count(Employee.is_active).label("employees"),
                 _count(Food.deleted_at.is_(None)).label("foods"),
                 _count(Food.deleted_at.is_(None), Food.is_available).label("available"),
+                _count(*booked_today).label("bookings"),
+                select(func.coalesce(func.sum(Reservation.party_size), 0))
+                .where(*booked_today)
+                .scalar_subquery()
+                .label("guests"),
+                _count(
+                    Reservation.status == ReservationStatus.REQUESTED,
+                    Reservation.ends_at > utcnow(),
+                ).label("requests"),
             )
         )
     ).one()
@@ -117,6 +138,9 @@ async def get_dashboard(session: AsyncSession) -> Dashboard:
         ),
         active_employees=counts.employees,
         menu=MenuStats(foods=counts.foods, available=counts.available),
+        reservations=ReservationStats(
+            today=counts.bookings, guests_today=counts.guests, requests=counts.requests
+        ),
         recent_orders=[RecentOrder.model_validate(order) for order in recent],
         top_foods_this_month=best_sellers,
     )

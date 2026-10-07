@@ -307,3 +307,33 @@ async def test_finished_bookings_cannot_be_edited(
     await move(client, waiter, booking, status="seated")
     error = await edit(client, waiter, booking, 409, partySize=3)
     assert error["code"] == "reservation_closed"
+
+
+async def test_dashboard_shows_todays_bookings(
+    client: AsyncClient, session: AsyncSession, tables: dict[str, DiningTable], manager_headers
+) -> None:
+    def booking(status: str, start: datetime, party: int, table: str | None = "four"):
+        return Reservation(
+            source="staff",
+            status=status,
+            table_id=tables[table].id if table else None,
+            party_size=party,
+            starts_at=start,
+            ends_at=start + timedelta(hours=1),
+            customer_name="x",
+            customer_phone="0171",
+        )
+
+    session.add_all(
+        [
+            booking("completed", at(12, days=0), 3),
+            booking("confirmed", at(20, days=0), 4),
+            booking("cancelled", at(20, days=0), 2),
+            booking("confirmed", at(20), 2),
+            booking("requested", at(13), 2, table=None),
+        ]
+    )
+    await session.commit()
+
+    body = (await client.get("/dashboard", headers=manager_headers)).json()
+    assert body["reservations"] == {"today": 2, "guestsToday": 7, "requests": 1}
