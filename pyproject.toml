@@ -21,6 +21,7 @@ entrypoint = "app.main:app"
 
 [dependency-groups]
 dev = [
+    "httpx-ws>=0.9.0",
     "pytest>=9.1.1",
     "ruff>=0.16.10",
 ]
