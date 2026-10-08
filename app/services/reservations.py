@@ -27,6 +27,7 @@ from app.schemas.reservation import (
     ReservationStatusChange,
     ReservationUpdate,
 )
+from app.services import live
 from app.services.common import commit_or_conflict
 from app.services.restaurant import get_restaurant
 
@@ -208,7 +209,9 @@ async def create_reservation(
     await assign_table(session, reservation, data.table_id)
     session.add(reservation)
     await save_booking(session)
-    return await get_reservation(session, reservation.id)
+    reservation = await get_reservation(session, reservation.id)
+    await live.reservation_created(reservation)
+    return reservation
 
 
 async def _lock(session: AsyncSession, reservation_id: int) -> Reservation:
@@ -248,7 +251,9 @@ async def update_reservation(
     elif table_id is not None:
         await assign_table(session, reservation, table_id)
     await save_booking(session)
-    return await get_reservation(session, reservation.id)
+    reservation = await get_reservation(session, reservation.id)
+    await live.reservation_updated(reservation)
+    return reservation
 
 
 async def change_status(
@@ -282,4 +287,6 @@ async def change_status(
 
     reservation.status = target
     await save_booking(session)
-    return await get_reservation(session, reservation.id)
+    reservation = await get_reservation(session, reservation.id)
+    await live.reservation_updated(reservation)
+    return reservation

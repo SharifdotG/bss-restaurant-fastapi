@@ -32,6 +32,7 @@ from app.schemas.public import (
     Slot,
     Slots,
 )
+from app.services import live
 from app.services.orders import build_order, get_order
 from app.services.reservations import free_tables, get_reservation, save_booking
 from app.services.restaurant import get_restaurant
@@ -139,7 +140,9 @@ async def place_table_order(session: AsyncSession, qr_token: str, data: PublicOr
         notes=data.notes,
     )
     await session.commit()
-    return await get_order(session, order.id)
+    order = await get_order(session, order.id)
+    await live.order_created(order)
+    return order
 
 
 async def place_online_order(session: AsyncSession, data: OnlineOrderCreate) -> Order:
@@ -172,7 +175,9 @@ async def place_online_order(session: AsyncSession, data: OnlineOrderCreate) -> 
         notes=data.notes,
     )
     await session.commit()
-    return await get_order(session, order.id)
+    order = await get_order(session, order.id)
+    await live.order_created(order)
+    return order
 
 
 async def cancel_public_order(session: AsyncSession, tracking_code: str) -> Order:
@@ -204,7 +209,9 @@ async def cancel_public_order(session: AsyncSession, tracking_code: str) -> Orde
     order.cancel_reason = CUSTOMER_CANCELLED
     order.closed_at = utcnow()
     await session.commit()
-    return await get_order(session, order.id)
+    order = await get_order(session, order.id)
+    await live.order_updated(order)
+    return order
 
 
 async def _accepting_bookings(session: AsyncSession) -> Restaurant:
@@ -311,7 +318,9 @@ async def request_reservation(session: AsyncSession, data: PublicReservationCrea
         reservation.table_id = tables[0].id
     session.add(reservation)
     await save_booking(session)
-    return await get_reservation(session, reservation.id)
+    reservation = await get_reservation(session, reservation.id)
+    await live.reservation_created(reservation)
+    return reservation
 
 
 async def get_public_reservation(session: AsyncSession, tracking_code: str) -> Reservation:
@@ -337,4 +346,6 @@ async def cancel_public_reservation(session: AsyncSession, tracking_code: str) -
     reservation.status = ReservationStatus.CANCELLED
     reservation.cancel_reason = CUSTOMER_CANCELLED
     await session.commit()
-    return await get_reservation(session, reservation.id)
+    reservation = await get_reservation(session, reservation.id)
+    await live.reservation_updated(reservation)
+    return reservation

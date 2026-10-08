@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import BadRequestError, ConflictError, NotFoundError
 from app.models import Order, OrderStatus, Payment, PaymentKind, User
 from app.schemas.order import PaymentCreate, RefundCreate
+from app.services import live
 from app.services.orders import close_as_paid, get_order
 
 
@@ -54,7 +55,9 @@ async def record_payment(
         close_as_paid(session, order, actor, "bill settled")
 
     await session.commit()
-    return await get_order(session, order.id)
+    order = await get_order(session, order.id)
+    await live.order_updated(order)
+    return order
 
 
 async def record_refund(
@@ -84,4 +87,6 @@ async def record_refund(
     )
     order.amount_paid -= data.amount
     await session.commit()
-    return await get_order(session, order.id)
+    order = await get_order(session, order.id)
+    await live.order_updated(order)
+    return order

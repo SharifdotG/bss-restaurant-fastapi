@@ -34,6 +34,7 @@ from app.schemas.order import (
     OrderUpdate,
     StatusChange,
 )
+from app.services import live
 from app.services.order_numbers import next_order_number
 from app.services.restaurant import get_restaurant
 
@@ -249,7 +250,9 @@ async def create_order(session: AsyncSession, actor: User, data: OrderCreate) ->
         notes=data.notes,
     )
     await session.commit()
-    return await get_order(session, order.id)
+    order = await get_order(session, order.id)
+    await live.order_created(order)
+    return order
 
 
 def close_as_paid(session: AsyncSession, order: Order, actor: User, note: str) -> None:
@@ -327,7 +330,9 @@ async def change_status(
     if target == OrderStatus.SERVED and order.amount_paid >= order.total:
         close_as_paid(session, order, actor, "paid before serving")
     await session.commit()
-    return await get_order(session, order.id)
+    order = await get_order(session, order.id)
+    await live.order_updated(order)
+    return order
 
 
 async def _lock_order(session: AsyncSession, order_id: int) -> Order:
@@ -362,7 +367,9 @@ async def update_order(
     for field, value in changes.items():
         setattr(order, field, value)
     await session.commit()
-    return await get_order(session, order.id)
+    order = await get_order(session, order.id)
+    await live.order_updated(order)
+    return order
 
 
 async def replace_items(
@@ -385,7 +392,9 @@ async def replace_items(
             extra={"amountPaid": float(order.amount_paid), "total": float(order.total)},
         )
     await session.commit()
-    return await get_order(session, order.id)
+    order = await get_order(session, order.id)
+    await live.order_updated(order)
+    return order
 
 
 async def add_items(session: AsyncSession, order_id: int, items: Sequence[OrderItemIn]) -> Order:
@@ -398,4 +407,6 @@ async def add_items(session: AsyncSession, order_id: int, items: Sequence[OrderI
     order.items.extend(_build_items(items, foods))
     _recalculate(order)
     await session.commit()
-    return await get_order(session, order.id)
+    order = await get_order(session, order.id)
+    await live.order_updated(order)
+    return order
