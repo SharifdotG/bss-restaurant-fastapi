@@ -54,6 +54,9 @@ class Settings(BaseSettings):
     # X-Forwarded-For. 0 means use the address of the connection itself
     trusted_proxy_hops: int = Field(0, ge=0, le=5)
     docs_enabled: bool = True
+    # "memory" for a single instance. "postgres" passes live updates between instances
+    # with LISTEN/NOTIFY, see the readme before turning it on with neon
+    live_backend: Literal["memory", "postgres"] = "memory"
 
     # for neon use the pooled connection string, migrations derive the direct one from it.
     # database_url_direct is only needed for databases where that doesn't work

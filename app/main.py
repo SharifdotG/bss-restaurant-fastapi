@@ -11,6 +11,7 @@ from app.api.v1.router import api_router
 from app.core.config import settings
 from app.core.database import engine
 from app.core.exceptions import register_exception_handlers
+from app.core.live import hub
 from app.core.logging import setup_logging
 from app.core.middleware import REQUEST_ID_HEADER, request_id_middleware
 
@@ -18,6 +19,7 @@ from app.core.middleware import REQUEST_ID_HEADER, request_id_middleware
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     yield
+    await hub.close()
     await engine.dispose()
 
 
