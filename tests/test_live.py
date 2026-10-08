@@ -15,12 +15,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.v1 import live as live_api
 from app.core import live as live_core
 from app.core.config import settings
-from app.core.live import RESYNC, Subscriber, hub
+from app.core.live import RESYNC, PostgresRelay, Subscriber, hub
 from app.core.security import ALGORITHM
 from app.core.timeutils import business_date, restaurant_tz
 from app.main import app
 from app.models import DiningTable, Food, User, UserRole
-from tests.conftest import UserFactory, auth_header
+from tests.conftest import UserFactory, auth_header, test_engine
 
 pytestmark = pytest.mark.anyio
 
@@ -282,6 +282,25 @@ async def test_a_broken_feed_does_not_fail_the_request(
 
     monkeypatch.setattr(hub, "publish", broken)
     await place_order(client, waiter, setup)
+
+
+async def test_feed_through_postgres(
+    ws_client: httpx.AsyncClient,
+    client: AsyncClient,
+    waiter: User,
+    setup: dict,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    relay = PostgresRelay(hub, engine=test_engine, retry_delay=0.05)
+    monkeypatch.setattr(hub, "relay", relay)
+    try:
+        async with feed(ws_client, waiter, topics="orders") as ws:
+            order = await place_order(client, waiter, setup)
+            event = await ws.receive_json(timeout=5)
+            assert event["event"] == "order.created"
+            assert event["data"]["id"] == order["id"]
+    finally:
+        await relay.stop()
 
 
 # the hub itself
