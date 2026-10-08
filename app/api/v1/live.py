@@ -3,15 +3,13 @@ import json
 from datetime import UTC, datetime
 from typing import Annotated, Any
 
-import jwt
 from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.api.deps import get_current_user
+from app.api.deps import authenticate_token
 from app.core.database import get_sessionmaker
 from app.core.exceptions import AuthenticationError
 from app.core.live import RESYNC, Subscriber, hub
-from app.core.security import decode_access_token
 from app.models import User, UserRole
 from app.services.live import Topic, snapshot
 
@@ -66,25 +64,24 @@ class Connection:
             raise Close(UNAUTHORIZED, 'send {"type": "auth", "token": "<access token>"}')
         try:
             async with self.sessions() as session:
-                user = await get_current_user(session, token)
-            expires = decode_access_token(token)["exp"]
-        except (AuthenticationError, jwt.InvalidTokenError) as exc:
-            raise Close(UNAUTHORIZED, getattr(exc, "code", "invalid_token")) from None
+                user, claims = await authenticate_token(session, token)
+        except AuthenticationError as exc:
+            raise Close(UNAUTHORIZED, exc.code) from None
         if self.user is not None and user.id != self.user.id:
             raise Close(UNAUTHORIZED, "a connection belongs to one user")
 
         self.user = user
-        self.expires_at = datetime.fromtimestamp(expires, UTC)
+        self.expires_at = datetime.fromtimestamp(claims["exp"], UTC)
         await self.send(
             {
                 "event": "authenticated",
                 "user": {"id": user.id, "fullName": user.full_name, "role": user.role},
-                "expiresIn": self.seconds_left(),
+                "expiresIn": int(self.seconds_left()),
             }
         )
 
-    def seconds_left(self) -> int:
-        return max(int((self.expires_at - datetime.now(UTC)).total_seconds()), 0)
+    def seconds_left(self) -> float:
+        return max((self.expires_at - datetime.now(UTC)).total_seconds(), 0)
 
     def topics(self, requested: str | None) -> frozenset[str]:
         allowed = TOPICS_BY_ROLE.get(self.user.role, set(Topic))

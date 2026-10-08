@@ -1,5 +1,5 @@
 from collections.abc import Awaitable, Callable
-from typing import Annotated
+from typing import Annotated, Any
 
 import jwt
 from fastapi import Depends
@@ -18,11 +18,8 @@ SessionDep = Annotated[AsyncSession, Depends(get_session)]
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.api_prefix}/auth/token", auto_error=False)
 
 
-async def get_current_user(
-    session: SessionDep, token: Annotated[str | None, Depends(oauth2_scheme)]
-) -> User:
-    if not token:
-        raise AuthenticationError("Not authenticated")
+async def authenticate_token(session: AsyncSession, token: str) -> tuple[User, dict[str, Any]]:
+    """The active user behind an access token, along with the token's claims."""
     try:
         payload = decode_access_token(token)
         user_id = int(payload["sub"])
@@ -35,6 +32,15 @@ async def get_current_user(
     user = await session.get(User, user_id)
     if user is None or not user.is_active:
         raise AuthenticationError("Invalid access token", code="invalid_token")
+    return user, payload
+
+
+async def get_current_user(
+    session: SessionDep, token: Annotated[str | None, Depends(oauth2_scheme)]
+) -> User:
+    if not token:
+        raise AuthenticationError("Not authenticated")
+    user, _ = await authenticate_token(session, token)
     return user
 
 
