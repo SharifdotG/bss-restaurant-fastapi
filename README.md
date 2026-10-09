@@ -50,6 +50,7 @@ Everything is read from environment variables (or `.env`).
 | `DB_ECHO` | Log every SQL statement |
 | `CORS_ORIGINS` | Comma separated list of allowed frontend origins |
 | `DOCS_ENABLED` | Set to `false` to hide `/docs` and `/openapi.json` |
+| `LIVE_BACKEND` | `memory` (default, one instance) or `postgres` to pass live updates between instances, see Live updates |
 | `RATE_LIMIT_ENABLED` | Login and public endpoints are rate limited per ip, default `true` |
 | `TRUSTED_PROXY_HOPS` | Number of proxies in front of the app, used to read the client ip from `X-Forwarded-For`. Default 0 (use the connection address) |
 | `SECRET_KEY` | Used to sign access tokens. Required outside `local` |
@@ -93,6 +94,7 @@ The Authorize button in `/docs` works too, put the email in the username field.
 | Dashboard | `GET /dashboard` | Managers and cashiers. See below |
 | Public | `/public/*` | No login, for customer facing sites. See below |
 | Reports | `/reports/*` | Managers only. See below |
+| Live | `ws /live` | Websocket with order and booking changes for kitchen and floor screens. See below |
 
 ### Orders
 
@@ -229,6 +231,54 @@ Every report takes `dateFrom` and `dateTo` (both included, default is the curren
 Add `.csv` to any of them (`/reports/sales.csv`, ...) to download it for Excel, and
 `/reports/orders.csv` gives every paid or cancelled order in the range, one per line.
 
+### Live updates
+
+`/api/v1/live` is a websocket that pushes order and booking changes as they happen, so
+kitchen and floor screens don't have to poll. Browsers can't put headers on a websocket,
+and tokens in the url end up in logs, so the token goes in the first message:
+
+```js
+const ws = new WebSocket("wss://<host>/api/v1/live?topics=orders")
+ws.onopen = () => ws.send(JSON.stringify({ type: "auth", token: accessToken }))
+ws.onmessage = (e) => {
+  const msg = JSON.parse(e.data)
+  // authenticated, snapshot, order.created, order.updated, reservation.created, ...
+}
+```
+
+| Message | When |
+| --- | --- |
+| `authenticated` | After each auth message, with the user and `expiresIn` (seconds) |
+| `snapshot` | Right after connecting: open `orders` and, for `reservations`, today's bookings, seated guests and unanswered requests |
+| `order.created`, `order.updated` | `data` is the order with its items, table, waiter, status and balance |
+| `reservation.created`, `reservation.updated` | `data` is the booking |
+| `snapshot` again | When the server thinks the screen missed something (it fell behind, or the postgres relay reconnected). Replace everything you have |
+| `ping` | Every 25 seconds when nothing happens, so proxies keep the connection open |
+
+- Treat events as "upsert by id": `order.updated` covers status changes, edits and
+  payments. Drop an order once its status is `paid` or `cancelled`
+- `?topics=orders,reservations` picks what to follow, both by default. Chefs only get
+  orders
+- The connection ends with the access token. Send another `{"type": "auth", "token": ...}`
+  with a fresh token before `expiresIn` runs out to keep it. `{"type": "ping"}` gets a
+  `pong`
+- Close codes: `4401` no or bad token, or it ran out (the reason says `token_expired`),
+  `4403` topic not allowed for the role, `4400` bad message or unknown topic. Reconnect
+  after anything else, the snapshot catches you up
+
+With more than one instance (FastAPI Cloud scales on its own) set `LIVE_BACKEND=postgres`,
+otherwise screens only hear about changes made on the instance they are connected to.
+Events then go through postgres `LISTEN/NOTIFY`:
+
+- Listening uses a direct connection (Neon's pooler can't `LISTEN`), opened only while the
+  instance has screens connected
+- An idle listening connection doesn't stop Neon's scale to zero: after a few quiet minutes
+  the database suspends and drops it. The relay reconnects (which wakes the database) and
+  screens get a fresh snapshot, so nothing is lost, but with screens connected the database
+  hardly sleeps. Neon recommends turning scale to zero off for `LISTEN`
+- A NOTIFY can't carry more than 8000 bytes. A huge order arrives with only its id and
+  `"partial": true`, fetch it with `GET /orders/{id}`
+
 ## Tests
 
 Tests run against a real Postgres database called `restaurant_test` (created automatically,
@@ -255,7 +305,7 @@ image in `compose.yaml` both have it.
 ```
 app/
   api/        routers and dependencies
-  core/       config, database, errors, logging, pagination helpers
+  core/       config, database, errors, logging, pagination, rate limits, live update hub
   models/     SQLAlchemy models
   schemas/    request/response models (camelCase over the wire)
   services/   business logic, routes stay thin
