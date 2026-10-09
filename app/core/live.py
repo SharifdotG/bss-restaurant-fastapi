@@ -119,7 +119,8 @@ class PostgresRelay:
     """Passes events between app instances with postgres LISTEN/NOTIFY.
 
     The listening connection is only open while this instance has websocket clients,
-    an idle LISTEN would keep neon from ever suspending the database.
+    no reason to wake neon up for nobody. Neon still drops it when the database suspends,
+    then it reconnects and the screens get a fresh snapshot.
     """
 
     def __init__(
