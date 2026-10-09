@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
 
 from sqlalchemy import select
@@ -7,7 +8,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.exceptions import BadRequestError, ConflictError, NotFoundError, PermissionDeniedError
 from app.core.pagination import apply_sort, paginate, search_filter
-from app.core.timeutils import range_bounds, utcnow
+from app.core.timeutils import business_date, range_bounds, utcnow
 from app.models import (
     ACTIVE_STATUSES,
     DiningTable,
@@ -207,15 +208,22 @@ async def build_order(
     customer_name: str | None = None,
     customer_phone: str | None = None,
     notes: str | None = None,
+    placed_at: datetime | None = None,
 ) -> Order:
-    """A new pending order priced from the menu. Added to the session, not committed."""
+    """A new pending order priced from the menu. Added to the session, not committed.
+
+    `placed_at` is for loading old orders (demo data, imports), the order gets the number
+    and timestamps of that day instead of today's.
+    """
     foods = await _load_foods(session, items)
     restaurant = await get_restaurant(session)
     # service charge is for table service, takeaway doesn't pay it
     dine_in = order_type == OrderType.DINE_IN
 
     order = Order(
-        order_number=await next_order_number(session),
+        order_number=await next_order_number(
+            session, business_date(placed_at) if placed_at else None
+        ),
         order_type=order_type,
         source=source,
         table_id=table_id,
@@ -230,6 +238,8 @@ async def build_order(
     )
     order.items = _build_items(items, foods)
     order.history = [OrderStatusEvent(to_status=OrderStatus.PENDING, changed_by_id=created_by_id)]
+    if placed_at:
+        order.created_at = order.updated_at = order.history[0].created_at = placed_at
     _recalculate(order)
     session.add(order)
     return order
