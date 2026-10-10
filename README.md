@@ -1,6 +1,8 @@
 # BSS Restaurant API
 
-Backend for a restaurant management system: staff, tables, menu, orders, expenses and reports.
+Backend for a restaurant management system: staff, tables, menu, orders, bills and payments,
+expenses, reports, table bookings, customer ordering from a QR code or a website, and live
+updates for kitchen screens.
 It started as a FastAPI port of [bss-rms](https://github.com/capt-farvez/bss-rms), an ASP.NET Core +
 Angular restaurant app. Along the way I'm fixing the things that bothered me there (prices coming
 from the client, no roles, images stored as base64 in the database, etc.) and adding features like
@@ -32,6 +34,18 @@ uv run alembic upgrade head
 uv run python -m app.cli create-admin
 uv run fastapi dev
 ```
+
+To have something to click around in, fill an empty database with demo data:
+
+```bash
+uv run python -m app.cli seed-demo
+```
+
+It adds a menu (Bangladeshi dishes, prices in taka), 10 tables, a manager, cashier, two
+waiters and a chef with logins (`manager@example.com` and so on, the password is printed at
+the end), about a month of paid orders, a few orders in the kitchen right now, expenses and
+bookings. It only runs on an empty database, and refuses `ENVIRONMENT=production` unless you
+pass `--allow-production`. `--days` and `--seed` change how much and which data you get.
 
 API docs are at http://localhost:8000/docs and the health check is at `/api/v1/health`.
 There is no public sign up, the first admin is created with the cli and everyone else
@@ -288,6 +302,9 @@ override with `TEST_DATABASE_URL`). With the compose database running:
 uv run pytest
 ```
 
+GitHub Actions runs ruff, the tests (against a postgres service) and `alembic check` on every
+push and pull request, see `.github/workflows/ci.yml`.
+
 ## Migrations
 
 ```bash
@@ -324,8 +341,43 @@ tests/
 
 ## Deploying
 
-```bash
-uv run fastapi deploy
-```
+The app runs on FastAPI Cloud, which finds `app.main:app` through `[tool.fastapi]` in
+`pyproject.toml`.
 
-Environment variables for the deployed app are set with `fastapi cloud env set` or from the dashboard.
+1. Set the environment variables, secrets with `--secret`:
+
+   ```bash
+   uv run fastapi cloud env set ENVIRONMENT production
+   uv run fastapi cloud env set --secret SECRET_KEY "<random, 32+ characters>"
+   uv run fastapi cloud env set --secret DATABASE_URL "<neon pooled url>"
+   uv run fastapi cloud env set CORS_ORIGINS "https://your-frontend.example"
+   ```
+
+   Plus `STORAGE_BACKEND=r2` with the `R2_*` settings, and if you like `DOCS_ENABLED=false`,
+   `LIVE_BACKEND=postgres` and `TRUSTED_PROXY_HOPS` (see Configuration)
+
+2. Run the migrations against the production database from your machine. Migrations so far
+   only add things, so they go **before** the deploy and the old version keeps working
+   during the gradual rollout:
+
+   ```bash
+   DATABASE_URL="<neon pooled url>" uv run alembic upgrade head
+   ```
+
+   On a new database create the first admin the same way with `create-admin`
+
+3. Deploy and check it's alive:
+
+   ```bash
+   uv run fastapi deploy
+   curl https://<your app url>/api/v1/health
+   ```
+
+A migration that removes or renames something has to go **after** the deploy that stops
+using it.
+
+## Credits
+
+The data model and the original feature set come from
+[bss-rms](https://github.com/capt-farvez/bss-rms) by capt-farvez. This is a rewrite in a
+different stack, not a fork, but it wouldn't exist without it.
