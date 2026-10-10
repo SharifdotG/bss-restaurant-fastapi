@@ -49,10 +49,6 @@ class Page[T](CamelModel):
     pages: int
 
 
-class Message(CamelModel):
-    message: str
-
-
 class WithImage(CamelModel):
     """Response mixin: keeps the storage key internal and exposes a ready to use url."""
 
