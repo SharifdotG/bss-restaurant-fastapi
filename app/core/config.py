@@ -53,6 +53,9 @@ class Settings(BaseSettings):
     # how many proxies sit in front of the app, used to find the real client ip in
     # X-Forwarded-For. 0 means use the address of the connection itself
     trusted_proxy_hops: int = Field(0, ge=0, le=5)
+    # a header set by the edge proxy that clients can't fake, wins over the two above.
+    # on fastapi cloud (behind cloudflare) that's cf-connecting-ip
+    client_ip_header: str | None = None
     docs_enabled: bool = True
     # "memory" for a single instance. "postgres" passes live updates between instances
     # with LISTEN/NOTIFY, see the readme before turning it on with neon

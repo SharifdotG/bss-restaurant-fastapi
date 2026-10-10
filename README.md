@@ -67,6 +67,7 @@ Everything is read from environment variables (or `.env`).
 | `LIVE_BACKEND` | `memory` (default, one instance) or `postgres` to pass live updates between instances, see Live updates |
 | `RATE_LIMIT_ENABLED` | Login and public endpoints are rate limited per ip, default `true` |
 | `TRUSTED_PROXY_HOPS` | Number of proxies in front of the app, used to read the client ip from `X-Forwarded-For`. Default 0 (use the connection address) |
+| `CLIENT_IP_HEADER` | Header with the real client ip that the edge proxy sets and clients can't fake. Wins over `TRUSTED_PROXY_HOPS`. On FastAPI Cloud set it to `cf-connecting-ip` |
 | `SECRET_KEY` | Used to sign access tokens. Required outside `local` |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | Access token lifetime, default 15 |
 | `REFRESH_TOKEN_EXPIRE_DAYS` | Refresh token lifetime, default 7 |
@@ -351,10 +352,16 @@ The app runs on FastAPI Cloud, which finds `app.main:app` through `[tool.fastapi
    uv run fastapi cloud env set --secret SECRET_KEY "<random, 32+ characters>"
    uv run fastapi cloud env set --secret DATABASE_URL "<neon pooled url>"
    uv run fastapi cloud env set CORS_ORIGINS "https://your-frontend.example"
+   uv run fastapi cloud env set CLIENT_IP_HEADER cf-connecting-ip
    ```
 
-   Plus `STORAGE_BACKEND=r2` with the `R2_*` settings, and if you like `DOCS_ENABLED=false`,
-   `LIVE_BACKEND=postgres` and `TRUSTED_PROXY_HOPS` (see Configuration)
+   Plus `STORAGE_BACKEND=r2` with the `R2_*` settings, and if you like `DOCS_ENABLED=false`
+   and `LIVE_BACKEND=postgres` (see Configuration).
+
+   `CLIENT_IP_HEADER` matters: FastAPI Cloud's uvicorn takes the client ip from the first
+   `X-Forwarded-For` entry, which anyone can set. Without it the login rate limits can be
+   dodged with a different made up ip on every request. Cloudflare in front sets
+   `CF-Connecting-IP` and refuses requests that try to send it themselves
 
 2. Run the migrations against the production database from your machine. Migrations so far
    only add things, so they go **before** the deploy and the old version keeps working

@@ -393,3 +393,22 @@ async def test_client_ip_behind_a_proxy(
 
     assert first[-1] == 429
     assert second == 200
+
+
+async def test_client_ip_from_a_header_the_proxy_sets(
+    client: AsyncClient, tea: Food, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # like fastapi cloud: cloudflare sets CF-Connecting-IP, X-Forwarded-For can be made up
+    monkeypatch.setattr(settings, "client_ip_header", "cf-connecting-ip")
+    monkeypatch.setattr(settings, "trusted_proxy_hops", 1)
+
+    async def login_from(ip: str, fake: str) -> int:
+        headers = {"CF-Connecting-IP": ip, "X-Forwarded-For": f"{fake}, 10.0.0.1"}
+        body = {"email": "nobody@example.com", "password": "wrong"}
+        return (await client.post("/auth/login", headers=headers, json=body)).status_code
+
+    # a new made up address every time doesn't get around the limit
+    attempts = [await login_from("203.0.113.7", f"6.6.6.{n}") for n in range(6)]
+    assert attempts[:5] == [401] * 5
+    assert attempts[5] == 429
+    assert await login_from("203.0.113.8", "6.6.6.6") == 401

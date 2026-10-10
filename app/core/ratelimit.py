@@ -57,6 +57,11 @@ limiter = RateLimiter()
 
 
 def client_ip(request: Request) -> str:
+    # uvicorn behind a proxy usually trusts X-Forwarded-For from anyone and puts its first
+    # entry in request.client, which the client can make up. a header the edge proxy
+    # overwrites is the only thing to go by then
+    if settings.client_ip_header and (ip := request.headers.get(settings.client_ip_header)):
+        return ip.strip()
     hops = settings.trusted_proxy_hops
     if hops:
         # each proxy appends the address it got the request from, so the entry added by
