@@ -345,6 +345,11 @@ tests/
 The app runs on FastAPI Cloud, which finds `app.main:app` through `[tool.fastapi]` in
 `pyproject.toml`.
 
+Put the production database in the same region as the app. FastAPI Cloud runs in AWS US
+East, so the Neon project should be in `aws-us-east-1`. Every query is a few network round
+trips, and with the database in Singapore a single page took 1.5 to 2.5 seconds instead of
+20 to 30 milliseconds. A dev branch near you is still the better choice for local work.
+
 1. Set the environment variables, secrets with `--secret`:
 
    ```bash
