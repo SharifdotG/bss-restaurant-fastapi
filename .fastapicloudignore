@@ -1,0 +1,4 @@
+# on top of .gitignore, things the running app never needs
+tests/
+.github/
+compose.yaml
