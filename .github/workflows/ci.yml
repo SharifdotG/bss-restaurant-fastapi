@@ -13,6 +13,7 @@ jobs:
       - uses: astral-sh/setup-uv@v10.3.0
         with:
           enable-cache: true
+          cache-suffix: lint
       - run: uv sync --locked
       - run: uv run ruff check .
       - run: uv run ruff format --check .
@@ -40,6 +41,7 @@ jobs:
       - uses: astral-sh/setup-uv@v10.3.0
         with:
           enable-cache: true
+          cache-suffix: test
       - run: uv sync --locked
       - run: uv run pytest
       # the models and the migrations must agree, tests leave the test db at head
