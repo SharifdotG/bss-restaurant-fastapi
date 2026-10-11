@@ -3,17 +3,19 @@
 Backend for a restaurant management system: staff, tables, menu, orders, bills and payments,
 expenses, reports, table bookings, customer ordering from a QR code or a website, and live
 updates for kitchen screens.
+
 It started as a FastAPI port of [bss-rms](https://github.com/capt-farvez/bss-rms), an ASP.NET Core +
-Angular restaurant app. Along the way I'm fixing the things that bothered me there (prices coming
-from the client, no roles, images stored as base64 in the database, etc.) and adding features like
-online ordering from a QR code and table reservations.
+Angular restaurant app. Along the way I fixed the things that bothered me there (prices coming
+from the client, no roles, images stored as base64 in the database, etc.) and added what it was
+missing: payments and receipts, reports, ordering from a QR code or a website, table bookings
+and live updates.
 
 The API is meant to be frontend agnostic so I can build different restaurant frontends on top of it.
 
 ## Stack
 
 - Python 3.13+, FastAPI, Pydantic v2
-- PostgreSQL ([Neon](https://neon.tech) in production), SQLAlchemy 2.0 async + asyncpg, Alembic
+- PostgreSQL ([Neon](https://neon.tech) in production), SQLAlchemy 2.1 async + asyncpg, Alembic
 - Cloudflare R2 for images
 - Deployed on [FastAPI Cloud](https://fastapicloud.com)
 - uv for dependencies, ruff for linting
@@ -182,9 +184,8 @@ the menu like for staff orders.
 - QR ordering is on and online ordering is off by default, see `acceptsQrOrders` and
   `acceptsOnlineOrders` on `/restaurant`
 - Placing and cancelling orders (and bookings, counted separately) is limited to 10
-  requests per 10 minutes per ip, reading
-  to 120 a minute. The limiter is in memory, so with more than one instance each one counts
-  on its own
+  requests per 10 minutes per ip, reading to 120 a minute. The limiter is in memory, so
+  with more than one instance each one counts on its own
 
 ### Reservations
 
@@ -327,9 +328,12 @@ app/
   models/     SQLAlchemy models
   schemas/    request/response models (camelCase over the wire)
   services/   business logic, routes stay thin
+  storage/    image storage, local folder or cloudflare r2
+  templates/  the printable receipt
   cli.py      management commands
 alembic/      migrations
 tests/
+.github/      ci
 ```
 
 ## API conventions
@@ -345,23 +349,29 @@ tests/
 The app runs on FastAPI Cloud, which finds `app.main:app` through `[tool.fastapi]` in
 `pyproject.toml`.
 
-Put the production database in the same region as the app. FastAPI Cloud runs in AWS US
-East, so the Neon project should be in `aws-us-east-1`. Every query is a few network round
-trips, and with the database in Singapore a single page took 1.5 to 2.5 seconds instead of
-20 to 30 milliseconds. A dev branch near you is still the better choice for local work.
+Put the production database in the same region as the app. The docs don't say where
+FastAPI Cloud runs, but measured from the app it's AWS US East, so the Neon project lives in
+`aws-us-east-1`. Every query is a few network round trips: with the database in Singapore a
+single page took 1.5 to 2.5 seconds, next to the app it takes 20 to 30 milliseconds. A dev
+branch near you is still the better choice for local work.
 
 1. Set the environment variables, secrets with `--secret`:
 
    ```bash
    uv run fastapi cloud env set ENVIRONMENT production
    uv run fastapi cloud env set --secret SECRET_KEY "<random, 32+ characters>"
-   uv run fastapi cloud env set --secret DATABASE_URL "<neon pooled url>"
    uv run fastapi cloud env set CORS_ORIGINS "https://your-frontend.example"
    uv run fastapi cloud env set CLIENT_IP_HEADER cf-connecting-ip
    ```
 
    Plus `STORAGE_BACKEND=r2` with the `R2_*` settings, and if you like `DOCS_ENABLED=false`
    and `LIVE_BACKEND=postgres` (see Configuration).
+
+   `DATABASE_URL` comes from the Neon integration: app → Storage → connect the Neon project,
+   branch and database. FastAPI Cloud then manages the variable and won't let you set it by
+   hand. It copies the password when connecting, so after resetting the password in Neon
+   disconnect and connect the database again, otherwise the app can't log in. Without the
+   integration, set it yourself with `env set --secret DATABASE_URL`.
 
    `CLIENT_IP_HEADER` matters: FastAPI Cloud's uvicorn takes the client ip from the first
    `X-Forwarded-For` entry, which anyone can set. Without it the login rate limits can be
@@ -376,7 +386,8 @@ trips, and with the database in Singapore a single page took 1.5 to 2.5 seconds 
    DATABASE_URL="<neon pooled url>" uv run alembic upgrade head
    ```
 
-   On a new database create the first admin the same way with `create-admin`
+   On a new database create the first admin the same way with `create-admin`. Do this
+   before connecting a new database to the app, so it never sees an empty schema
 
 3. Deploy and check it's alive:
 
