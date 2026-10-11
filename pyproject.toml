@@ -1,6 +1,6 @@
 [project]
 name = "bss-restaurant-fastapi"
-version = "0.1.0"
+version = "1.0.0"
 description = "Restaurant management API built with FastAPI"
 readme = "README.md"
 requires-python = ">=3.13"
