@@ -13,7 +13,7 @@ and live updates.
 The API is meant to be frontend agnostic so I can build different restaurant frontends on top of it.
 
 Docs, with guides and the full API reference, are at
-[bss-restaurant-backend.mintlify.app](https://bss-restaurant-backend.mintlify.app).
+[bss-restaurant-fastapi.mintlify.app](https://bss-restaurant-fastapi.mintlify.app).
 
 ## Stack
 
