@@ -1,0 +1,59 @@
+---
+title: "Home"
+description: "How the BSS Restaurant API is built, how to run and deploy it, and every endpoint it exposes."
+icon: "/icons/house.svg"
+mode: "frame"
+---
+
+import { Intro, Action, LinkPanel, LinkRow } from "/snippets/landing.jsx";
+
+<div className="bss-landing not-prose">
+
+<Intro
+  title="The API behind BSS Restaurant"
+  actions={
+    <>
+      <Action href="/quickstart" primary>Run it locally</Action>
+      <Action href="/concepts/architecture">How a request flows</Action>
+    </>
+  }
+>
+  A FastAPI backend for running a restaurant: staff and roles, tables, the menu, orders from staff, QR codes and the website, payments and receipts, table bookings, expenses, reports, and a live feed for kitchen screens. These docs explain how it's built and why, how to run and deploy it, and what every endpoint does.
+</Intro>
+
+<div className="bss-request">
+
+```bash Your first request
+curl http://localhost:8000/api/v1/health
+# {"status":"ok","database":"ok","version":"1.0.0","environment":"local"}
+```
+
+</div>
+
+<div className="bss-panels">
+
+<LinkPanel title="Start here">
+  <LinkRow href="/quickstart" icon="/icons/rocket-launch.svg" title="Quickstart">Postgres, an admin and demo data</LinkRow>
+  <LinkRow href="/tech-stack" icon="/icons/stack.svg" title="Tech stack">What each library does here</LinkRow>
+  <LinkRow href="/project-structure" icon="/icons/tree-structure.svg" title="Project structure">Routers, services and models</LinkRow>
+</LinkPanel>
+
+<LinkPanel title="Understand it">
+  <LinkRow href="/concepts/auth-and-tokens" icon="/icons/key.svg" title="Auth and tokens">Access and refresh tokens</LinkRow>
+  <LinkRow href="/concepts/orders" icon="/icons/receipt.svg" title="Orders">From pending to paid</LinkRow>
+  <LinkRow href="/concepts/live-updates" icon="/icons/broadcast.svg" title="Live updates">The WebSocket feed</LinkRow>
+</LinkPanel>
+
+<LinkPanel title="Run it for real">
+  <LinkRow href="/guides/database" icon="/icons/database.svg" title="Database">Neon and migrations</LinkRow>
+  <LinkRow href="/guides/deploy-to-fastapi-cloud" icon="/icons/cloud-arrow-up.svg" title="Deploy">FastAPI Cloud, Neon and R2</LinkRow>
+  <LinkRow href="/reference/configuration" icon="/icons/brackets-curly.svg" title="Configuration">Every environment variable</LinkRow>
+</LinkPanel>
+
+</div>
+
+<p className="bss-aside">
+  The API is one half of the project. The other half is the staff dashboard built on top of it, which has its own docs at <a href="https://bss-restaurant-frontend.mintlify.app">bss-restaurant-frontend.mintlify.app</a>.
+</p>
+
+</div>

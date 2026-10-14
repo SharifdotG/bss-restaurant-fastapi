@@ -1,0 +1,124 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "almond",
+  "name": "BSS Restaurant Backend",
+  "colors": {
+    "primary": "#d63b00",
+    "light": "#ff673d",
+    "dark": "#d63b00"
+  },
+  "favicon": "/logo/mark.svg",
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg"
+  },
+  "background": {
+    "color": {
+      "light": "#f3f6fa",
+      "dark": "#0c1015"
+    }
+  },
+  "fonts": {
+    "family": "Google Sans Flex"
+  },
+  "appearance": {
+    "default": "system"
+  },
+  "contextual": {
+    "options": [
+      "copy",
+      "view"
+    ]
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Guides",
+        "groups": [
+          {
+            "group": "Get started",
+            "pages": [
+              "index",
+              "quickstart",
+              "tech-stack",
+              "project-structure"
+            ]
+          },
+          {
+            "group": "How it works",
+            "pages": [
+              "concepts/architecture",
+              "concepts/auth-and-tokens",
+              "concepts/roles",
+              "concepts/orders",
+              "concepts/payments-and-refunds",
+              "concepts/reservations",
+              "concepts/live-updates",
+              "concepts/public-ordering",
+              "concepts/images",
+              "concepts/reports",
+              "concepts/errors-and-limits"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/database",
+              "guides/demo-data",
+              "guides/deploy-to-fastapi-cloud",
+              "guides/testing-and-ci"
+            ]
+          },
+          {
+            "group": "Reference",
+            "pages": [
+              "reference/configuration",
+              "reference/cli"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API reference",
+        "openapi": "openapi.json"
+      }
+    ]
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "Frontend docs",
+        "href": "https://bss-restaurant-frontend.mintlify.app"
+      },
+      {
+        "type": "github",
+        "href": "https://github.com/SharifdotG/bss-restaurant-fastapi"
+      }
+    ]
+  },
+  "styling": {
+    "codeblocks": {
+      "theme": {
+        "light": "github-light-default",
+        "dark": "github-dark-default"
+      }
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/SharifdotG"
+    }
+  },
+  "api": {
+    "playground": {
+      "display": "simple"
+    },
+    "examples": {
+      "languages": [
+        "bash",
+        "javascript",
+        "python"
+      ]
+    }
+  }
+}

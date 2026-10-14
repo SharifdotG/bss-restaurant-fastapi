@@ -2,3 +2,4 @@
 tests/
 .github/
 compose.yaml
+docs/

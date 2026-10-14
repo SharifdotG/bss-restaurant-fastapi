@@ -1,0 +1,967 @@
+/*
+  The dashboard's look on top of Mintlify's Almond theme.
+  Colours, radii, shadows and timings are copied from the frontend's tokens.css and globals.css;
+  both docs sites share this file, so change it in both repos together.
+*/
+
+@import url("https://fonts.googleapis.com/css2?family=Google+Sans+Code:wght@400..700&display=swap");
+
+:root {
+  --bss-ground: oklch(97.2% 0.006 260);
+  --bss-card: oklch(100% 0 0);
+  --bss-ink: oklch(34% 0.026 260);
+  --bss-ink-2: oklch(42% 0.026 260);
+  --bss-muted: oklch(53% 0.026 260);
+  --bss-nav: oklch(50% 0.026 260);
+  --bss-muted-fill: oklch(95.5% 0.007 260);
+  --bss-secondary: oklch(94.8% 0.006 260);
+  --bss-hairline: oklch(92.5% 0.008 260);
+  --bss-input: oklch(88% 0.012 260);
+  --bss-primary: oklch(58.1% 0.199 36);
+  --bss-primary-hover: oklch(55% 0.188 36);
+  --bss-primary-soft: oklch(97.7% 0.012 44);
+  --bss-primary-soft-ink: oklch(50% 0.173 35.6);
+  --bss-brand: oklch(70% 0.194 36.1);
+  --bss-brand-track: oklch(94.8% 0.028 42.8);
+  --bss-tile: oklch(100% 0 0);
+  --bss-shadow: oklch(30% 0.03 260 / 0.06);
+  --bss-shadow-strong: oklch(30% 0.03 260 / 0.12);
+
+  --bss-amber-subtle: oklch(97.7% 0.02 79);
+  --bss-amber-ink: oklch(42% 0.09 72.6);
+  --bss-green-subtle: oklch(97.7% 0.036 152);
+  --bss-green-ink: oklch(50% 0.132 152);
+  --bss-slate-subtle: oklch(94.8% 0.006 260);
+  --bss-slate-ink: oklch(50% 0.026 260);
+  --bss-red-subtle: oklch(97.7% 0.011 18);
+  --bss-red-ink: oklch(50% 0.186 18);
+
+  --bss-radius-xs: 6px;
+  --bss-radius-sm: 8px;
+  --bss-radius-md: 10px;
+  --bss-radius-lg: 12px;
+  --bss-radius-xl: 16px;
+  --bss-radius-2xl: 20px;
+  --bss-shadow-sm: 0 2px 8px var(--bss-shadow);
+  --bss-shadow-md: 0 6px 24px var(--bss-shadow);
+  --bss-shadow-lg: 0 16px 40px var(--bss-shadow-strong);
+  --bss-fast: 120ms;
+  --bss-base: 180ms;
+  --bss-ease: cubic-bezier(0.2, 0, 0, 1);
+  --bss-ease-arrive: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Mintlify builds its greys from these; this swaps its warm ramp for the dashboard's slate. */
+  --gray-50: 247 248 250;
+  --gray-100: 237 240 245;
+  --gray-200: 227 230 236;
+  --gray-300: 211 216 224;
+  --gray-400: 157 165 177;
+  --gray-500: 116 126 141;
+  --gray-600: 99 108 123;
+  --gray-700: 69 78 92;
+  --gray-800: 37 41 48;
+  --gray-900: 21 24 31;
+  --gray-950: 12 16 21;
+
+  --font-paper-mono: "Google Sans Code", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  scrollbar-color: var(--bss-input) transparent;
+}
+
+.dark {
+  --bss-ground: oklch(17% 0.012 260);
+  --bss-card: oklch(21% 0.014 260);
+  --bss-ink: oklch(96% 0.005 260);
+  --bss-ink-2: oklch(86% 0.012 260);
+  --bss-muted: oklch(72% 0.02 260);
+  --bss-nav: oklch(75% 0.02 260);
+  --bss-muted-fill: oklch(24.5% 0.014 260);
+  --bss-secondary: oklch(26% 0.014 260);
+  --bss-hairline: oklch(28% 0.014 260);
+  --bss-input: oklch(34% 0.016 260);
+  --bss-primary-soft: oklch(27% 0.06 38);
+  --bss-primary-soft-ink: oklch(82.5% 0.102 40.4);
+  --bss-brand-track: oklch(28% 0.05 38);
+  --bss-tile: oklch(24.5% 0.014 260);
+  --bss-shadow: oklch(5% 0 0 / 0.3);
+  --bss-shadow-strong: oklch(5% 0 0 / 0.5);
+
+  --bss-amber-subtle: oklch(27% 0.055 74.2);
+  --bss-amber-ink: oklch(82.5% 0.13 76.6);
+  --bss-green-subtle: oklch(27% 0.055 152);
+  --bss-green-ink: oklch(82.5% 0.116 152);
+  --bss-slate-subtle: oklch(27% 0.014 260);
+  --bss-slate-ink: oklch(89.5% 0.018 260);
+  --bss-red-subtle: oklch(27% 0.055 18);
+  --bss-red-ink: oklch(82.5% 0.098 18);
+}
+
+/* Browser surfaces */
+
+body {
+  font-variant-numeric: tabular-nums;
+  caret-color: var(--bss-primary);
+}
+
+::selection {
+  background-color: var(--bss-primary-soft);
+  color: var(--bss-primary-soft-ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--bss-brand);
+  outline-offset: 2px;
+}
+
+code,
+kbd,
+pre,
+samp,
+.font-mono {
+  font-family: var(--font-paper-mono);
+  font-variant-ligatures: none;
+}
+
+/* Layout: the page is a white card on the cool ground, like every dashboard panel */
+
+#content-container {
+  background-color: var(--bss-card);
+  border: 0;
+  box-shadow: var(--bss-shadow-md);
+}
+
+#navbar .nav-logo {
+  height: 30px;
+}
+
+/* Sidebar: nav items carry the dashboard's icon tiles */
+
+#sidebar-content {
+  font-size: 14px;
+}
+
+#sidebar-content .sidebar-group-header,
+#sidebar-content h5 {
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 700;
+  letter-spacing: 0.025em;
+  text-transform: uppercase;
+  color: var(--bss-muted);
+}
+
+#sidebar-content li > a {
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 6px 12px 6px 6px;
+  border-radius: var(--bss-radius-lg);
+  font-weight: 600;
+  color: var(--bss-nav);
+  transition:
+    background-color var(--bss-base) var(--bss-ease),
+    color var(--bss-base) var(--bss-ease),
+    box-shadow var(--bss-base) var(--bss-ease);
+}
+
+#sidebar-content li > a:hover {
+  background-color: color-mix(in oklab, var(--bss-card) 60%, transparent);
+  color: var(--bss-ink);
+}
+
+#sidebar-content li > a > div:first-child:has(img) {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--bss-radius-md);
+  background-color: var(--bss-tile);
+  box-shadow: var(--bss-shadow-sm);
+  transition: background-color var(--bss-base) var(--bss-ease);
+}
+
+#sidebar-content li > a img {
+  width: 16px;
+  height: 16px;
+}
+
+/* Icon files are drawn in the light tile colour; filters repaint them where the tile changes. */
+.dark #sidebar-content li > a img {
+  filter: brightness(0) invert(0.7);
+}
+
+#sidebar-content li[data-active="true"] > a {
+  background-color: var(--bss-card);
+  box-shadow: var(--bss-shadow-sm);
+  color: var(--bss-ink);
+  font-weight: 700;
+  text-shadow: none;
+}
+
+#sidebar-content li[data-active="true"] > a > div:first-child:has(img) {
+  background-color: var(--bss-primary);
+}
+
+#sidebar-content li[data-active="true"] > a img {
+  filter: brightness(0) invert(1);
+}
+
+/* Page header */
+
+#header .eyebrow {
+  display: none;
+}
+
+#page-title {
+  font-size: 30px;
+  line-height: 38px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  color: var(--bss-ink);
+}
+
+#header .prose {
+  color: var(--bss-muted);
+}
+
+#page-context-menu > button {
+  border-color: var(--bss-hairline);
+  background-color: var(--bss-card);
+  color: var(--bss-ink);
+}
+
+#page-context-menu > button:first-child {
+  border-radius: var(--bss-radius-md) 0 0 var(--bss-radius-md);
+}
+
+#page-context-menu > button:last-child {
+  border-radius: 0 var(--bss-radius-md) var(--bss-radius-md) 0;
+}
+
+#page-context-menu > button:hover {
+  background-color: var(--bss-muted-fill);
+}
+
+/* Reading */
+
+#content {
+  --tw-prose-body: var(--bss-ink-2);
+  --tw-prose-headings: var(--bss-ink);
+  --tw-prose-bold: var(--bss-ink);
+  --tw-prose-bullets: var(--bss-input);
+  --tw-prose-counters: var(--bss-muted);
+  --tw-prose-quotes: var(--bss-ink-2);
+  --tw-prose-hr: var(--bss-hairline);
+  --tw-prose-th-borders: var(--bss-hairline);
+  --tw-prose-td-borders: var(--bss-hairline);
+  color: var(--bss-ink-2);
+}
+
+#content :is(h1, h2, h3, h4) {
+  color: var(--bss-ink);
+  font-weight: 700;
+  text-wrap: balance;
+}
+
+#content h2 {
+  font-size: 24px;
+  line-height: 32px;
+  letter-spacing: -0.02em;
+}
+
+#content h3 {
+  font-size: 18px;
+  line-height: 26px;
+  letter-spacing: -0.01em;
+}
+
+#content h4 {
+  font-size: 16px;
+  line-height: 24px;
+}
+
+#content a.link:not([class*="bss-"]),
+#content p a:not([class*="card"], [class*="bss-"]),
+#content li a:not([class*="card"], [class*="bss-"]) {
+  color: var(--bss-primary-soft-ink);
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklab, var(--bss-brand) 45%, transparent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  border-bottom: 0;
+  transition: text-decoration-color var(--bss-base) var(--bss-ease);
+}
+
+#content a.link:not([class*="bss-"]):hover,
+#content p a:not([class*="card"], [class*="bss-"]):hover,
+#content li a:not([class*="card"], [class*="bss-"]):hover {
+  text-decoration-color: currentColor;
+}
+
+#content :not(pre) > code {
+  padding: 1px 6px;
+  border: 0;
+  border-radius: var(--bss-radius-xs);
+  background-color: var(--bss-muted-fill);
+  color: var(--bss-ink);
+  font-size: 0.875em;
+  font-weight: 500;
+}
+
+#content kbd {
+  padding: 1px 6px;
+  border: 1px solid var(--bss-hairline);
+  border-radius: var(--bss-radius-xs);
+  background-color: var(--bss-card);
+  box-shadow: 0 1px 0 var(--bss-hairline);
+  color: var(--bss-ink);
+  font-size: 0.8125em;
+}
+
+#content blockquote {
+  border-left: 2px solid var(--bss-input);
+  color: var(--bss-ink-2);
+  font-style: normal;
+}
+
+#content hr {
+  border-color: var(--bss-hairline);
+}
+
+/* Tables read like the dashboard's: caps headings, hairline rows, tabular figures */
+
+#content table {
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+#content thead th {
+  padding-top: 10px;
+  padding-bottom: 10px;
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 700;
+  letter-spacing: 0.025em;
+  text-transform: uppercase;
+  color: var(--bss-muted);
+  border-bottom: 1px solid var(--bss-hairline);
+}
+
+#content tbody td {
+  border-top: 1px solid var(--bss-hairline);
+  color: var(--bss-ink-2);
+}
+
+#content tbody tr {
+  border: 0;
+}
+
+/* Callouts map onto the five state tones; blue and purple aren't in the palette */
+
+#content .callout {
+  border: 0;
+  border-radius: var(--bss-radius-lg);
+  padding: 14px 16px;
+}
+
+#content .callout [data-component-part="callout-content"] {
+  font-size: 14px;
+  line-height: 22px;
+}
+
+#content .callout[data-callout-type="note"] {
+  background-color: var(--bss-primary-soft);
+  color: var(--bss-primary-soft-ink);
+}
+
+#content .callout[data-callout-type="info"] {
+  background-color: var(--bss-slate-subtle);
+  color: var(--bss-slate-ink);
+}
+
+#content .callout:is([data-callout-type="tip"], [data-callout-type="check"]) {
+  background-color: var(--bss-green-subtle);
+  color: var(--bss-green-ink);
+}
+
+#content .callout[data-callout-type="warning"] {
+  background-color: var(--bss-amber-subtle);
+  color: var(--bss-amber-ink);
+}
+
+#content .callout[data-callout-type="danger"] {
+  background-color: var(--bss-red-subtle);
+  color: var(--bss-red-ink);
+}
+
+#content .callout [data-component-part="callout-content"],
+#content .callout [data-component-part="callout-icon"] {
+  color: inherit;
+}
+
+#content .callout [data-component-part="callout-icon"] svg {
+  color: currentColor;
+  fill: currentColor;
+}
+
+#content .callout :not(pre) > code {
+  background-color: color-mix(in oklab, currentColor 10%, transparent);
+}
+
+/* Code */
+
+.code-block,
+.code-group {
+  border: 1px solid var(--bss-hairline);
+  border-radius: var(--bss-radius-xl);
+  background-color: var(--bss-muted-fill);
+  box-shadow: none;
+}
+
+/* The highlighter sets its own background inline. */
+[data-component-part="code-block-root"],
+.dark [data-component-part="code-block-root"] {
+  background-color: var(--bss-card) !important;
+  font-size: 13.5px;
+  line-height: 22px;
+}
+
+[data-component-part="code-block-header"],
+[data-component-part="code-group-tab-bar"] {
+  font-size: 12px;
+  color: var(--bss-muted);
+}
+
+[data-component-part="code-block-header-filename"] {
+  color: var(--bss-ink);
+  font-family: var(--font-paper-mono);
+  font-weight: 500;
+}
+
+pre.shiki,
+.dark pre.shiki {
+  background-color: transparent !important;
+}
+
+/* Steps */
+
+#content [data-component-part="step-indicator"] {
+  background-color: var(--bss-primary-soft);
+  color: var(--bss-primary-soft-ink);
+  font-weight: 700;
+}
+
+#content [data-component-part="step-line"] {
+  background-color: var(--bss-hairline);
+}
+
+#content [data-component-part="step-title"] {
+  color: var(--bss-ink);
+  font-weight: 700;
+}
+
+/* Tabs */
+
+#content [data-component-part="tabs-list"] {
+  border-color: var(--bss-hairline);
+}
+
+#content [data-component-part="tab-button"] {
+  color: var(--bss-muted);
+  transition: color var(--bss-base) var(--bss-ease);
+}
+
+#content [data-component-part="tab-button"]:hover {
+  color: var(--bss-ink);
+}
+
+#content [data-component-part="tab-button"].text-primary {
+  color: var(--bss-primary);
+}
+
+.dark #content [data-component-part="tab-button"].text-primary {
+  color: var(--bss-brand);
+}
+
+/* Accordions */
+
+#content details,
+#content .accordion-group {
+  border-color: var(--bss-hairline);
+  border-radius: var(--bss-radius-xl);
+}
+
+#content [data-component-part="accordion-button"]:hover {
+  background-color: var(--bss-muted-fill);
+}
+
+#content [data-component-part="accordion-title"] {
+  color: var(--bss-ink);
+  font-weight: 600;
+}
+
+/* Cards sit inside the page card, so they get a hairline instead of a second shadow */
+
+#content .card {
+  border: 1px solid var(--bss-hairline);
+  border-radius: var(--bss-radius-xl);
+  background-color: var(--bss-card);
+  box-shadow: none;
+  transition: border-color var(--bss-base) var(--bss-ease);
+}
+
+#content a.card:hover,
+#content .card.cursor-pointer:hover {
+  border-color: var(--bss-input) !important;
+}
+
+#content .card [data-component-part="card-icon"] {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--bss-radius-lg);
+  background-color: var(--bss-primary);
+  color: oklch(100% 0 0);
+  fill: oklch(100% 0 0);
+}
+
+#content .card [data-component-part="card-icon"] :is(svg, img) {
+  width: 20px;
+  height: 20px;
+}
+
+/* Library icons are masks painted with a background colour. */
+#content .card [data-component-part="card-icon"] svg {
+  background-color: oklch(100% 0 0);
+}
+
+#content .card [data-component-part="card-icon"] img {
+  filter: brightness(0) invert(1);
+}
+
+#content .card [data-component-part="card-title"] {
+  margin-top: 16px;
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 700;
+  color: var(--bss-ink);
+}
+
+#content .card [data-component-part="card-content"] {
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--bss-muted);
+}
+
+/* API reference: fields and HTTP methods. Methods borrow the state tones: reads green, writes orange, edits amber, deletes red */
+
+[data-component-part="field-name"] {
+  color: var(--bss-ink);
+  font-family: var(--font-paper-mono);
+}
+
+[data-component-part="field-info-pill"] {
+  border-radius: 9999px;
+  background-color: var(--bss-slate-subtle);
+  color: var(--bss-slate-ink);
+  font-family: var(--font-paper-mono);
+}
+
+[data-component-part="field-required-pill"] {
+  border-radius: 9999px;
+  background-color: var(--bss-red-subtle);
+  color: var(--bss-red-ink);
+}
+
+.method-pill,
+.method-nav-pill > span {
+  border-radius: var(--bss-radius-xs);
+  font-family: var(--font-paper-mono);
+  letter-spacing: 0.02em;
+}
+
+.method-pill[class*="green"],
+.method-nav-pill > span[class*="green"] {
+  background-color: var(--bss-green-subtle);
+  color: var(--bss-green-ink);
+}
+
+.method-pill:is([class*="blue"], [class*="3064E3"]),
+.method-nav-pill > span:is([class*="blue"], [class*="3064E3"]) {
+  background-color: var(--bss-primary-soft);
+  color: var(--bss-primary-soft-ink);
+}
+
+.method-pill:is([class*="orange"], [class*="yellow"]),
+.method-nav-pill > span:is([class*="orange"], [class*="yellow"]) {
+  background-color: var(--bss-amber-subtle);
+  color: var(--bss-amber-ink);
+}
+
+.method-pill[class*="red"],
+.method-nav-pill > span[class*="red"] {
+  background-color: var(--bss-red-subtle);
+  color: var(--bss-red-ink);
+}
+
+/* Prev / next */
+
+[data-component-part="pagination-prev"],
+[data-component-part="pagination-next"] {
+  border-color: var(--bss-hairline);
+  border-radius: var(--bss-radius-lg);
+  background-color: var(--bss-card);
+  transition: border-color var(--bss-base) var(--bss-ease);
+}
+
+[data-component-part="pagination-prev"]:hover,
+[data-component-part="pagination-next"]:hover {
+  border-color: var(--bss-input);
+}
+
+/* Search sits in a white pill, like the dashboard's top bar */
+
+#search-bar-entry,
+#search-bar-entry-mobile {
+  border-radius: 9999px;
+  border-color: var(--bss-hairline);
+  background-color: var(--bss-card);
+  box-shadow: var(--bss-shadow-sm);
+}
+
+/* Snippets: Source, Pill */
+
+#content .bss-source {
+  text-decoration: none;
+  border: 0;
+}
+
+#content .bss-source code {
+  color: var(--bss-primary-soft-ink);
+  transition: background-color var(--bss-base) var(--bss-ease);
+}
+
+#content .bss-source:hover code {
+  background-color: var(--bss-primary-soft);
+}
+
+.bss-pill {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 9999px;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 700;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.bss-pill-amber {
+  background-color: var(--bss-amber-subtle);
+  color: var(--bss-amber-ink);
+}
+
+.bss-pill-orange {
+  background-color: var(--bss-primary-soft);
+  color: var(--bss-primary-soft-ink);
+}
+
+.bss-pill-green {
+  background-color: var(--bss-green-subtle);
+  color: var(--bss-green-ink);
+}
+
+.bss-pill-slate {
+  background-color: var(--bss-slate-subtle);
+  color: var(--bss-slate-ink);
+}
+
+.bss-pill-red {
+  background-color: var(--bss-red-subtle);
+  color: var(--bss-red-ink);
+}
+
+/* Landing */
+
+#content .bss-landing a {
+  border-bottom: 0;
+  text-decoration: none;
+}
+
+#content .bss-landing {
+  container-type: inline-size;
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 56px 64px 64px;
+  color: var(--bss-ink-2);
+}
+
+#content .bss-intro {
+  max-width: 680px;
+}
+
+#content .bss-intro-title {
+  margin: 0;
+  font-size: 36px;
+  line-height: 44px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  color: var(--bss-ink);
+  text-wrap: balance;
+}
+
+#content .bss-intro-lead {
+  margin-top: 16px;
+  font-size: 17px;
+  line-height: 28px;
+  color: var(--bss-muted);
+}
+
+#content .bss-intro-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 28px;
+}
+
+#content .bss-action {
+  display: inline-flex;
+  align-items: center;
+  height: 40px;
+  padding: 0 16px;
+  border: 1px solid var(--bss-hairline);
+  border-radius: var(--bss-radius-md);
+  background-color: var(--bss-card);
+  box-shadow: var(--bss-shadow-sm);
+  color: var(--bss-ink);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  transition:
+    background-color var(--bss-base) var(--bss-ease),
+    scale var(--bss-fast) var(--bss-ease);
+}
+
+#content .bss-action:hover {
+  background-color: var(--bss-muted-fill);
+}
+
+#content .bss-action:active {
+  scale: 0.98;
+}
+
+#content .bss-action-primary {
+  border-color: transparent;
+  background-color: var(--bss-primary);
+  color: oklch(100% 0 0);
+}
+
+#content .bss-action-primary:hover {
+  background-color: var(--bss-primary-hover);
+}
+
+#content .bss-shot {
+  display: block;
+  width: 100%;
+  margin: 40px 0 0;
+  border: 1px solid var(--bss-hairline);
+  border-radius: var(--bss-radius-xl);
+  box-shadow: var(--bss-shadow-md);
+}
+
+#content .bss-request {
+  max-width: 680px;
+  margin-top: 40px;
+}
+
+#content .bss-panels {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
+  margin-top: 48px;
+}
+
+@container (min-width: 760px) {
+  #content .bss-panels {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+#content .bss-panel-title {
+  margin: 0 0 10px 4px;
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 700;
+  letter-spacing: 0.025em;
+  text-transform: uppercase;
+  color: var(--bss-muted);
+}
+
+#content .bss-panel-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+#content .bss-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px 8px 8px;
+  border-radius: var(--bss-radius-lg);
+  color: var(--bss-ink);
+  text-decoration: none;
+  transition:
+    background-color var(--bss-base) var(--bss-ease),
+    box-shadow var(--bss-base) var(--bss-ease);
+}
+
+#content .bss-row:hover {
+  background-color: var(--bss-card);
+  box-shadow: var(--bss-shadow-sm);
+}
+
+#content .bss-row-tile {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--bss-radius-md);
+  background-color: var(--bss-tile);
+  box-shadow: var(--bss-shadow-sm);
+  transition: background-color var(--bss-base) var(--bss-ease);
+}
+
+#content .bss-row-tile img {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+}
+
+.dark #content .bss-row-tile img {
+  filter: brightness(0) invert(0.7);
+}
+
+#content .bss-row:hover .bss-row-tile {
+  background-color: var(--bss-primary);
+}
+
+#content .bss-row:hover .bss-row-tile img {
+  filter: brightness(0) invert(1);
+}
+
+#content .bss-row-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+#content .bss-row-title {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 700;
+}
+
+#content .bss-row-note {
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--bss-muted);
+}
+
+#content .bss-row-arrow {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  fill: var(--bss-input);
+  transition:
+    fill var(--bss-base) var(--bss-ease),
+    translate var(--bss-base) var(--bss-ease);
+}
+
+#content .bss-row:hover .bss-row-arrow {
+  fill: var(--bss-muted);
+  translate: 2px 0;
+}
+
+#content .bss-aside {
+  max-width: 680px;
+  margin: 48px 0 0;
+  padding-top: 24px;
+  border-top: 1px solid var(--bss-hairline);
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--bss-muted);
+}
+
+#content .bss-landing .bss-aside a {
+  color: var(--bss-primary-soft-ink);
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklab, var(--bss-brand) 45%, transparent);
+  text-underline-offset: 3px;
+}
+
+#content .bss-landing .bss-aside a:hover {
+  text-decoration-color: currentColor;
+}
+
+/* The landing's one moment: the intro, the screenshot and the panels rise in turn on first paint */
+
+@keyframes bss-rise {
+  from {
+    opacity: 0;
+    translate: 0 12px;
+  }
+}
+
+.bss-landing > :is(.bss-intro, .bss-shot, .bss-request, .bss-panels, .bss-aside) {
+  animation: bss-rise 340ms var(--bss-ease-arrive) backwards;
+}
+
+.bss-landing > :is(.bss-shot, .bss-request) {
+  animation-delay: 60ms;
+}
+
+.bss-landing > .bss-panels {
+  animation-delay: 120ms;
+}
+
+.bss-landing > .bss-aside {
+  animation-delay: 180ms;
+}
+
+@media (max-width: 767px) {
+  #page-title {
+    font-size: 24px;
+    line-height: 32px;
+  }
+
+  #content .bss-landing {
+    padding: 28px 20px 40px;
+  }
+
+  #content .bss-intro-title {
+    font-size: 30px;
+    line-height: 38px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0ms !important;
+  }
+
+  @keyframes bss-rise {
+    from {
+      opacity: 0;
+    }
+  }
+}
