@@ -4,7 +4,7 @@
   both docs sites share this file, so change it in both repos together.
 */
 
-@import url("https://fonts.googleapis.com/css2?family=Google+Sans+Code:wght@400..700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Google+Sans+Code:wght@400..700&family=Baloo+Da+2:wght@400..700&display=swap");
 
 :root {
   --bss-ground: oklch(97.2% 0.006 260);
@@ -67,6 +67,12 @@
   scrollbar-color: var(--bss-input) transparent;
 }
 
+/* Google Sans Flex has no Bangla, not even the taka sign; Baloo Da 2 picks those up, as in the app. */
+html:root {
+  --font-family-body-custom: "Google Sans Flex", "Baloo Da 2", system-ui, sans-serif;
+  --font-family-headings-custom: "Google Sans Flex", "Baloo Da 2", system-ui, sans-serif;
+}
+
 .dark {
   --bss-ground: oklch(17% 0.012 260);
   --bss-card: oklch(21% 0.014 260);
@@ -110,6 +116,24 @@ body {
 :focus-visible {
   outline: 2px solid var(--bss-brand);
   outline-offset: 2px;
+}
+
+/* Text fields show focus on their rounded box instead, like the dashboard's inputs. */
+:is(input, textarea):focus-visible {
+  outline: none;
+}
+
+div:has(> #search-input) {
+  border-color: var(--bss-input);
+  background-color: var(--bss-card);
+  transition:
+    border-color var(--bss-fast) var(--bss-ease),
+    box-shadow var(--bss-fast) var(--bss-ease);
+}
+
+div:has(> #search-input:focus-visible) {
+  border-color: var(--bss-brand);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--bss-brand) 25%, transparent);
 }
 
 code,
@@ -444,6 +468,124 @@ pre.shiki,
   background-color: transparent !important;
 }
 
+/* Diagrams: Mermaid ships its own palette in an inline style tag, hence the !important */
+
+.mermaid {
+  margin: 24px 0;
+  padding: 20px;
+  border: 1px solid var(--bss-hairline);
+  border-radius: var(--bss-radius-xl);
+  background-color: var(--bss-card);
+}
+
+.mermaid svg {
+  font-family: var(--font-family-body-custom) !important;
+}
+
+.mermaid
+  :is(
+    .node rect,
+    .node polygon,
+    .node path,
+    .node circle:not(.state-start, .state-end),
+    rect.actor,
+    .basic.label-container,
+    .cluster rect
+  ) {
+  fill: var(--bss-card) !important;
+  stroke: var(--bss-input) !important;
+  stroke-width: 1px !important;
+}
+
+.mermaid :is(.node rect, rect.actor) {
+  rx: 10px;
+  ry: 10px;
+}
+
+.mermaid .cluster rect {
+  fill: var(--bss-ground) !important;
+  stroke: var(--bss-hairline) !important;
+}
+
+/* class Name accent in a diagram marks the part the page is about */
+.mermaid .node.accent :is(rect, polygon, path, circle) {
+  fill: var(--bss-primary-soft) !important;
+  stroke: var(--bss-brand) !important;
+}
+
+.mermaid .node.accent :is(.nodeLabel, span, p) {
+  color: var(--bss-primary-soft-ink) !important;
+  fill: var(--bss-primary-soft-ink) !important;
+}
+
+.mermaid
+  :is(
+    .nodeLabel,
+    .label,
+    .stateLabel,
+    .cluster-label,
+    text.actor,
+    text.actor > tspan,
+    .messageText,
+    .stateGroup text
+  ) {
+  color: var(--bss-ink) !important;
+  fill: var(--bss-ink) !important;
+}
+
+.mermaid
+  :is(.flowchart-link, .edgePath path, .transition, .messageLine0, .messageLine1, .relation) {
+  stroke: var(--bss-muted) !important;
+  stroke-width: 1.25px !important;
+}
+
+.mermaid .actor-line {
+  stroke: var(--bss-hairline) !important;
+}
+
+.mermaid :is(marker path, .arrowheadPath, #arrowhead path, .marker) {
+  fill: var(--bss-muted) !important;
+  stroke: var(--bss-muted) !important;
+}
+
+.mermaid :is(.edgeLabel, .edgeLabel p, .edgeLabel span, .labelBkg) {
+  background-color: var(--bss-card) !important;
+  color: var(--bss-muted) !important;
+  fill: var(--bss-muted) !important;
+  font-size: 13px;
+}
+
+.mermaid .edgeLabel rect {
+  fill: var(--bss-card) !important;
+  opacity: 1 !important;
+}
+
+.mermaid rect.note {
+  fill: var(--bss-primary-soft) !important;
+  stroke: none !important;
+  rx: 8px;
+}
+
+.mermaid .noteText,
+.mermaid .noteText > tspan {
+  fill: var(--bss-primary-soft-ink) !important;
+}
+
+.mermaid :is(.state-start, circle.state-start) {
+  fill: var(--bss-ink) !important;
+  stroke: var(--bss-ink) !important;
+}
+
+.mermaid .state-end {
+  fill: var(--bss-ink) !important;
+  stroke: var(--bss-card) !important;
+}
+
+.mermaid .activation0 {
+  fill: var(--bss-muted-fill) !important;
+  stroke: var(--bss-input) !important;
+}
+
 /* Steps */
 
 #content [data-component-part="step-indicator"] {
@@ -685,6 +827,159 @@ pre.shiki,
   color: var(--bss-red-ink);
 }
 
+/* Snippets: Shot, Phones, Why, Bangla text */
+
+#content .bss-figure {
+  margin: 28px 0;
+}
+
+#content .bss-screen {
+  display: block;
+  width: 100%;
+  margin: 0;
+  border: 1px solid var(--bss-hairline);
+  border-radius: var(--bss-radius-lg);
+  box-shadow: var(--bss-shadow-sm);
+}
+
+#content .bss-screen-dark,
+.dark #content .bss-screen-light {
+  display: none;
+}
+
+.dark #content .bss-screen-dark {
+  display: block;
+}
+
+#content .bss-figure figcaption {
+  margin-top: 10px;
+  font-size: 13px;
+  line-height: 18px;
+  text-align: center;
+  color: var(--bss-muted);
+}
+
+#content .bss-figure-phone {
+  width: 100%;
+  max-width: 260px;
+  margin-inline: auto;
+}
+
+#content .bss-figure-phone .bss-screen {
+  border-radius: var(--bss-radius-2xl);
+}
+
+#content .bss-phones {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 20px;
+  margin: 28px 0;
+}
+
+#content .bss-phones .bss-figure {
+  flex: 1 1 200px;
+  margin: 0;
+}
+
+#content .bss-why {
+  margin: 24px 0;
+  padding: 16px 20px;
+  border-radius: var(--bss-radius-lg);
+  background-color: var(--bss-ground);
+}
+
+#content .bss-why-title {
+  margin: 0 0 4px;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 700;
+  color: var(--bss-primary-soft-ink);
+}
+
+#content .bss-why-body {
+  font-size: 15px;
+  line-height: 24px;
+  color: var(--bss-ink-2);
+}
+
+#content .bss-why-body > :first-child {
+  margin-top: 0;
+}
+
+#content .bss-why-body > :last-child {
+  margin-bottom: 0;
+}
+
+.bss-bn {
+  font-family: "Baloo Da 2", var(--font-family-body-custom);
+}
+
+#content .bss-swatches {
+  margin: 24px 0;
+  border: 1px solid var(--bss-hairline);
+  border-radius: var(--bss-radius-xl);
+  overflow: hidden;
+}
+
+#content .bss-swatch-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+}
+
+#content .bss-swatch-row + .bss-swatch-row {
+  border-top: 1px solid var(--bss-hairline);
+}
+
+#content .bss-swatch-pair {
+  display: flex;
+  flex-shrink: 0;
+  gap: 4px;
+}
+
+#content .bss-swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--bss-radius-sm);
+  box-shadow: inset 0 0 0 1px oklch(0% 0 0 / 0.08);
+}
+
+#content .bss-swatch-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+#content .bss-swatch-text code {
+  align-self: flex-start;
+}
+
+#content .bss-swatch-use {
+  color: var(--bss-muted);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+#content .bss-swatch-values {
+  flex-shrink: 0;
+  font-family: var(--font-paper-mono);
+  font-size: 12px;
+  line-height: 18px;
+  text-align: right;
+  color: var(--bss-muted);
+}
+
+@media (max-width: 520px) {
+  #content .bss-swatch-values {
+    display: none;
+  }
+}
+
 /* Landing */
 
 #content .bss-landing a {
@@ -764,11 +1059,15 @@ pre.shiki,
   background-color: var(--bss-primary-hover);
 }
 
-#content .bss-shot {
-  display: block;
-  width: 100%;
-  margin: 40px 0 0;
-  border: 1px solid var(--bss-hairline);
+#content .bss-shot-frame {
+  margin-top: 40px;
+}
+
+#content .bss-shot-frame .bss-figure {
+  margin: 0;
+}
+
+#content .bss-shot-frame .bss-screen {
   border-radius: var(--bss-radius-xl);
   box-shadow: var(--bss-shadow-md);
 }
@@ -920,11 +1219,11 @@ pre.shiki,
   }
 }
 
-.bss-landing > :is(.bss-intro, .bss-shot, .bss-request, .bss-panels, .bss-aside) {
+.bss-landing > :is(.bss-intro, .bss-shot-frame, .bss-request, .bss-panels, .bss-aside) {
   animation: bss-rise 340ms var(--bss-ease-arrive) backwards;
 }
 
-.bss-landing > :is(.bss-shot, .bss-request) {
+.bss-landing > :is(.bss-shot-frame, .bss-request) {
   animation-delay: 60ms;
 }
 
