@@ -1,5 +1,111 @@
 ---
 title: "Reports"
-description: "The dashboard summary, sales, dishes, expenses and staff reports, and CSV exports."
+description: "The dashboard summary, sales and profit, best sellers, expenses, staff, and CSV exports."
 icon: "/icons/chart-bar.svg"
 ---
+
+import { Why } from "/snippets/why.jsx";
+import { Source } from "/snippets/source.jsx";
+import { Shot } from "/snippets/shot.jsx";
+
+Two kinds of numbers: a **dashboard** with everything about today in one call, for managers and cashiers, and **reports** over any date range, for managers. The maths is in <Source path="app/services/reports.py" /> and <Source path="app/services/dashboard.py" />.
+
+<Shot name="reports" alt="The dashboard's Reports page with sales and profit KPIs and a sales chart" caption="The dashboard's Reports page, built on these endpoints." />
+
+## What counts
+
+Every money figure follows the same few rules. They're worth knowing, because each one changes a number.
+
+| Rule | Why |
+| --- | --- |
+| **Only paid orders count.** | An open bill isn't money yet, and a cancelled one never will be |
+| **An order counts on the day it was paid**, not the day it was placed | That's the day the money came in |
+| **Days are restaurant days** (`RESTAURANT_TZ`) | A sale at 00:30 in Dhaka belongs to that morning, though it's still yesterday in UTC |
+| **Sales** are what customers paid: the order totals, VAT and service charge included | It matches the till |
+| **Profit** is sales − VAT − refunds − expenses | VAT is collected for the government; it was never the restaurant's |
+| **A refund counts on the day it was given**, and only if the order was already paid | A refund before payment just fixed a wrong payment, and the order's total already shows it |
+
+In code, the profit rule is one line:
+
+```python app/services/reports.py
+# vat is collected for the government, it was never ours
+profit=sales - vat - refunds - expenses,
+```
+
+## The dashboard
+
+`GET /dashboard` is the manager's morning glance, in one request:
+
+| Field | What's in it |
+| --- | --- |
+| `today`, `thisMonth`, `thisYear`, `allTime` | Orders, sales, VAT, refunds, expenses, profit and average order for each |
+| `ordersToday`, `cancelledToday` | Orders placed today, and how many were called off |
+| `openOrders` | How many open orders sit in each status |
+| `tables` | How many tables there are, how many are occupied and how many are free |
+| `reservations` | Today's bookings and guests, and website requests waiting for an answer |
+| `recentOrders` | The five latest orders |
+| `topFoodsThisMonth` | This month's best sellers |
+| `menu`, `activeEmployees` | How many dishes there are and how many are available, and how many active staff |
+
+Managers and cashiers can read it. Cashiers need the takings for the till; the detailed reports stay with managers.
+
+## Reports
+
+Every report takes `dateFrom` and `dateTo`, **both included**, as restaurant dates. Leave them out and you get the current month so far. A range can be up to 10 years.
+
+### Sales and profit
+
+```bash
+GET /api/v1/reports/sales?dateFrom=2026-10-01&dateTo=2026-10-15&groupBy=day
+```
+
+One row per period, with `groupBy` set to `day` (the default), `week`, `month` or `year`. Each row has the period's start and end, and its orders, sales, discounts, VAT, refunds, expenses, profit and average order. `totals` adds up the whole range.
+
+**Periods without a sale still get a row**, with zeros, so a chart has no holes in it. Weeks start on Monday. Daily rows are limited to about 400 days; for longer ranges, group by week or month.
+
+### Best sellers
+
+```bash
+GET /api/v1/reports/top-foods?limit=10&categoryId=2
+```
+
+Foods by quantity sold, with how many orders they were in and the revenue from their lines. `limit` goes up to 50.
+
+### Expenses
+
+```bash
+GET /api/v1/reports/expenses
+```
+
+Expenses per category, with each category's share of the total. The categories are `ingredients`, `utilities`, `supplies`, `maintenance`, `salary`, `rent`, `marketing` and `other`. Expenses count on their own date, not when they were entered.
+
+### Staff
+
+```bash
+GET /api/v1/reports/staff
+```
+
+Per waiter: paid orders, items sold, sales, and cancelled orders. An order belongs to the waiter it was assigned to.
+
+## CSV exports
+
+Add `.csv` to any report to download it:
+
+```bash
+GET /api/v1/reports/sales.csv?dateFrom=2026-10-01
+GET /api/v1/reports/top-foods.csv
+GET /api/v1/reports/expenses.csv
+GET /api/v1/reports/staff.csv
+GET /api/v1/reports/orders.csv
+```
+
+`orders.csv` is the odd one out: every paid or cancelled order in the range, one per line, for whoever does the books.
+
+Two small things make the files behave in Excel, both in <Source path="app/core/export.py" />:
+
+- **A byte-order mark** at the start, so Excel opens it as UTF-8 and Bangla dish names come out right instead of as garbled symbols.
+- **Formula protection.** A cell starting with `=`, `+`, `-` or `@` gets a `'` in front. Otherwise a dish someone named `=HYPERLINK(...)` would run as a formula when the file is opened.
+
+<Why>
+  The staff report exists because the app this one was ported from had an "amount sold" column for each waiter that nothing ever filled in. Here it's worked out from the orders, so it can't fall out of date.
+</Why>

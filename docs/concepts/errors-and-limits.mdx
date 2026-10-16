@@ -1,5 +1,214 @@
 ---
-title: "Errors and rate limits"
-description: "The error format, error codes and how login and public routes are rate limited."
+title: "Errors and limits"
+description: "The one error shape, every error code, rate limits, and how lists are paged, searched and sorted."
 icon: "/icons/warning-circle.svg"
 ---
+
+import { Why } from "/snippets/why.jsx";
+import { Source } from "/snippets/source.jsx";
+
+## One shape for every error
+
+Whatever goes wrong, the body looks the same:
+
+```json
+{ "detail": "Only 253.83 is left to pay", "code": "overpayment", "balanceDue": 253.83 }
+```
+
+| Field | For |
+| --- | --- |
+| `code` | **Programs.** A fixed name that never changes. Switch on this |
+| `detail` | **People.** A readable sentence in English. It may be reworded, so don't match on it |
+| anything else | Extra facts for that error, like `balanceDue` above or `allowed` on a refused status change |
+
+A client that shows messages in another language maps `code` to its own text. The dashboard does exactly that for English and Bangla.
+
+The handlers that make this happen are in <Source path="app/core/exceptions.py" />. They catch the API's own errors, FastAPI's validation errors, plain HTTP errors like 404 for an unknown URL, database conflicts that slipped through, and anything unexpected, which becomes `500 internal_error` with the details in the log, not in the response.
+
+## Status codes
+
+| Status | Means | Example codes |
+| --- | --- | --- |
+| `400` | The request makes no sense as sent | `reason_required`, `unknown_foods`, `invalid_sort` |
+| `401` | Not signed in, or the token is no good | `not_authenticated`, `token_expired`, `invalid_token` |
+| `403` | Signed in, but not allowed | `permission_denied`, `account_disabled` |
+| `404` | It doesn't exist | `not_found` |
+| `409` | Allowed in general, but not in the current state | `order_closed`, `overpayment`, `table_not_available` |
+| `413` | The upload is too big | `payload_too_large` |
+| `422` | The body or query doesn't match the schema | `validation_error` |
+| `429` | Too many requests | `rate_limited` |
+| `500` | A bug | `internal_error` |
+| `503` | `/health` only: the database can't be reached | |
+
+The difference between 400 and 409 is worth a second look. **400** means "this request is wrong and always will be": a cancel without a reason. **409** means "this would be fine, but not right now": paying an order that's already paid. A client can often fix a 409 by fetching the latest state.
+
+## Validation errors
+
+When the JSON doesn't match the schema, the answer lists each problem with the field it belongs to:
+
+```json
+{
+  "detail": "Request validation failed",
+  "code": "validation_error",
+  "errors": [
+    { "field": "items.0.quantity", "message": "Input should be less than or equal to 100", "type": "less_than_equal" },
+    { "field": "customerPhone", "message": "String should match pattern '^\\+?[0-9][0-9 -]{5,18}$'", "type": "string_pattern_mismatch" }
+  ]
+}
+```
+
+`field` uses the same camelCase names as the JSON, with list positions as numbers, so a form can put each message under the right input.
+
+## Every error code
+
+<AccordionGroup>
+  <Accordion title="Signing in and accounts">
+    | Code | Status | When |
+    | --- | --- | --- |
+    | `not_authenticated` | 401 | No token sent |
+    | `token_expired` | 401 | The access token ran out. Refresh and retry |
+    | `invalid_token` | 401 | A token that's malformed, forged, or belongs to an inactive account |
+    | `invalid_credentials` | 401 | Wrong email or password |
+    | `invalid_refresh_token` | 401 | Unknown, expired or reused refresh token |
+    | `account_disabled` | 403 | The account has been deactivated |
+    | `permission_denied` | 403 | The role isn't allowed |
+    | `wrong_password` | 400 | The current password was wrong when changing it |
+    | `email_taken`, `phone_taken` | 409 | Another account has it |
+    | `last_admin` | 409 | That would leave no active admin |
+  </Accordion>
+  <Accordion title="Menu">
+    | Code | Status | When |
+    | --- | --- | --- |
+    | `category_exists`, `food_exists` | 409 | The name is taken (case doesn't matter) |
+    | `category_not_empty` | 409 | Deleting a category that still has foods. Switch it off instead |
+    | `invalid_category` | 400 | The food's category doesn't exist |
+    | `invalid_discount` | 400 | A percentage over 100, or a flat discount above the price |
+  </Accordion>
+  <Accordion title="Tables and staff">
+    | Code | Status | When |
+    | --- | --- | --- |
+    | `table_exists` | 409 | The table number is taken |
+    | `table_in_use` | 409 | Deleting a table that has orders or bookings. Switch it off instead |
+    | `invalid_employees` | 400 | Assigning staff who don't exist or have left |
+    | `employee_exists` | 409 | Another employee has that phone number or NID (national ID) |
+    | `account_exists` | 409 | The employee already has a sign-in |
+    | `email_required` | 400 | Creating a sign-in for an employee without an email |
+    | `employee_inactive` | 400 | The employee has left |
+  </Accordion>
+  <Accordion title="Orders">
+    | Code | Status | When |
+    | --- | --- | --- |
+    | `unknown_foods`, `foods_unavailable` | 400 | A food doesn't exist or is sold out. `foodIds` lists them |
+    | `quantity_too_high` | 400 | More than 100 of one food on one line |
+    | `invalid_table`, `invalid_waiter` | 400 | The table or waiter doesn't exist or isn't active |
+    | `invalid_status_change` | 409 | That move isn't allowed from here. `allowed` lists the moves that are |
+    | `reason_required` | 400 | Cancelling without a reason |
+    | `refund_required` | 409 | The order holds money. Refund it first |
+    | `payment_required` | 409 | Trying to set `paid` by hand |
+    | `order_locked` | 409 | The kitchen started, items can only be added. Or too late to add any |
+    | `order_closed` | 409 | The order is paid or cancelled |
+  </Accordion>
+  <Accordion title="Payments and receipts">
+    | Code | Status | When |
+    | --- | --- | --- |
+    | `overpayment` | 409 | More than the balance. `balanceDue` says how much is left |
+    | `nothing_to_pay` | 409 | The balance is already 0 |
+    | `not_enough_cash` | 400 | `tendered` is less than `amount` |
+    | `nothing_to_refund`, `refund_too_high` | 409 | Refunding more than was paid. `refundable` says how much can be |
+    | `order_cancelled` | 409 | Asking for the receipt of a cancelled order |
+  </Accordion>
+  <Accordion title="Reservations">
+    | Code | Status | When |
+    | --- | --- | --- |
+    | `no_table_available` | 409 | No free table fits the party then |
+    | `table_too_small`, `table_not_available` | 409 | The chosen table is too small, or booked then |
+    | `reservation_in_past` | 400 or 409 | The time has passed (400), or confirming a booking that's already over (409) |
+    | `reservation_closed` | 409 | Editing a booking that's seated or finished |
+    | `too_early` | 409 | Marking a no-show before the booking time |
+  </Accordion>
+  <Accordion title="Public ordering and booking">
+    | Code | Status | When |
+    | --- | --- | --- |
+    | `qr_orders_disabled`, `online_orders_disabled`, `reservations_disabled` | 409 | Switched off in the settings |
+    | `too_many_waiting_orders` | 409 | 3 unconfirmed orders already, from this table or phone |
+    | `too_many_bookings` | 409 | 3 upcoming bookings already, for this phone |
+    | `cancel_not_allowed` | 409 | Too late for the guest to cancel |
+    | `too_short_notice`, `too_far_ahead` | 400 | Less than an hour, or more than 60 days, ahead |
+    | `outside_opening_hours` | 400 | The booking doesn't fit inside opening hours |
+  </Accordion>
+  <Accordion title="Images">
+    | Code | Status | When |
+    | --- | --- | --- |
+    | `payload_too_large` | 413 | Over `MAX_UPLOAD_MB` |
+    | `unsupported_image`, `invalid_image` | 400 | Not a JPEG, PNG, WebP or GIF, or not an image at all |
+    | `image_too_large` | 400 | Over 40 million pixels |
+    | `invalid_image_key` | 400 | A key that didn't come from the upload endpoint, or from the wrong folder |
+  </Accordion>
+  <Accordion title="General">
+    | Code | Status | When |
+    | --- | --- | --- |
+    | `validation_error` | 422 | See above |
+    | `invalid_sort` | 400 | Sorting by a field that isn't allowed. `allowed` lists the ones that are |
+    | `not_found` | 404 | No such thing |
+    | `http_404`, `http_405` | 404, 405 | No such URL, or the wrong method for it |
+    | `conflict` | 409 | Two requests raced to create the same thing. Try again |
+    | `rate_limited` | 429 | See below |
+    | `internal_error` | 500 | A bug. The response has an `X-Request-ID` header to find it in the logs |
+  </Accordion>
+</AccordionGroup>
+
+## Rate limits
+
+| What | Limit | Counted per |
+| --- | --- | --- |
+| Signing in | 20 a minute | IP address |
+| Signing in to one account | 5 in 5 minutes | Account and IP address |
+| Every `/public` endpoint | 120 a minute | IP address |
+| Placing or cancelling a public order | 10 in 10 minutes | IP address |
+| Placing or cancelling a public booking | 10 in 10 minutes | IP address |
+
+Past a limit, the API answers `429` with a `Retry-After` header and the same number as `retryAfter` in the body: the seconds until the next attempt is allowed.
+
+The limiter in <Source path="app/core/ratelimit.py" /> keeps a list of recent request times per key, in memory. Two consequences:
+
+- **With more than one instance, each counts on its own.** That's still enough to stop password guessing and order spam.
+- **Restarting the API resets every count.** Handy when testing. `RATE_LIMIT_ENABLED=false` switches them off for load tests.
+
+<Why>
+  A shared store like Redis would make the limits exact across instances. For what they protect against, a rough limit per instance does the job, and it means one less service to run. If that ever stops being true, the limiter is one small class to swap.
+</Why>
+
+### Which IP address?
+
+Behind a proxy, the connection comes from the proxy, not the visitor. The API works out the real address in this order:
+
+1. **`CLIENT_IP_HEADER`**, if set: a header the edge proxy writes and visitors can't fake. On FastAPI Cloud that's `cf-connecting-ip`.
+2. **`TRUSTED_PROXY_HOPS`**, if above 0: read `X-Forwarded-For`, counting that many proxies from the right.
+3. Otherwise, the connection's own address.
+
+<Warning>
+  Set `CLIENT_IP_HEADER=cf-connecting-ip` on FastAPI Cloud. Without it, the IP comes from the first `X-Forwarded-For` entry, which anyone can set to a made-up address on every request, and the login limits stop meaning anything.
+</Warning>
+
+## Lists
+
+Every endpoint that returns a list takes the same four query parameters:
+
+| Parameter | Default | Example |
+| --- | --- | --- |
+| `page` | 1 | `?page=3` |
+| `size` | 20, at most 100 | `?size=50` |
+| `search` | | `?search=biryani`: case-insensitive, matches anywhere in the field |
+| `sort` | Depends on the list | `?sort=-createdAt,name`: comma separated, `-` for descending |
+
+and answers with:
+
+```json
+{ "items": [ ... ], "total": 137, "page": 3, "size": 20, "pages": 7 }
+```
+
+Each list allows sorting by a few fields; anything else is `400 invalid_sort`, with the allowed fields in `allowed`. Ties are broken by ID, so paging through a list never shows a row twice or skips one.
+
+## Request IDs
+
+Every response has an `X-Request-ID` header, and every log line for that request carries the same ID. Send your own `X-Request-ID` (letters, digits, `.`, `_` and `-`, up to 64 characters) and the API uses it, so one ID can follow a request from the browser into the API's logs.

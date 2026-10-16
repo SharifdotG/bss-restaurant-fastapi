@@ -1,5 +1,137 @@
 ---
-title: "QR and online ordering"
-description: "The public endpoints guests use to read the menu, order and book a table."
+title: "Public ordering"
+description: "The endpoints guests use without an account: the menu, ordering from a QR code or a website, tracking, and booking a table."
 icon: "/icons/qr-code.svg"
 ---
+
+import { Why } from "/snippets/why.jsx";
+import { Source } from "/snippets/source.jsx";
+
+Everything under `/api/v1/public` works **without signing in**, so a restaurant website or the page behind a table's QR code can be built on top of it. It's in <Source path="app/api/v1/public.py" /> and <Source path="app/services/public.py" />.
+
+Guests get the same treatment as staff where it matters: they send only what they want, and prices come from the menu.
+
+## The endpoints
+
+| Endpoint | What it does |
+| --- | --- |
+| `GET /public/restaurant` | Name, contact details, currency, VAT and service charge, and which kinds of ordering are switched on |
+| `GET /public/menu` | Every visible category with its foods, in one call |
+| `GET /public/tables/{qrToken}` | The table behind a QR code, so the page can say "Table 4" |
+| `POST /public/tables/{qrToken}/orders` | Order from the table |
+| `POST /public/orders` | Order takeaway from the website |
+| `GET /public/orders/{trackingCode}` | An order's status, items and bill |
+| `POST /public/orders/{trackingCode}/cancel` | Cancel it, while the restaurant hasn't accepted it |
+| `GET /public/reservations/slots` | Times on a day a party can book |
+| `POST /public/reservations` | Book a table |
+| `GET /public/reservations/{trackingCode}` | A booking's status and table |
+| `POST /public/reservations/{trackingCode}/cancel` | Cancel it, until it starts |
+
+## The menu
+
+`GET /public/menu` returns the restaurant's details and the menu together, so a QR page needs one request to draw itself. Hidden categories and deleted foods are left out. **Sold-out foods are included** with `isAvailable: false`, so the page can show them greyed out instead of making them vanish mid-meal. Featured foods come first in each category.
+
+## Ordering from the table
+
+Every table has a random `qrToken`. The QR code on the table links to a page with that token, and the page orders with it:
+
+```json POST /api/v1/public/tables/kZ3u9QhLm0aPd2Rx/orders
+{
+  "items": [{ "foodId": 5, "quantity": 2 }],
+  "customerName": "Sakib"
+}
+```
+
+The order is placed as `dine_in` at that table with `source: "qr"`, and waits as `pending` until a waiter confirms it. Whoever confirms it becomes its waiter. Staff find these orders with:
+
+```bash
+GET /api/v1/orders?source=qr&source=online&status=pending
+```
+
+and the live feed announces each one as it arrives.
+
+## Ordering from the website
+
+`POST /public/orders` is the same, for takeaway: no table, and `customerName` and `customerPhone` are required so the restaurant knows who to call. It's placed with `source: "online"` and waits for staff the same way.
+
+Online ordering is **off** by default, and QR ordering **on**. Managers switch them with `acceptsOnlineOrders` and `acceptsQrOrders` in the restaurant settings; when one is off, the answer is `409 online_orders_disabled` or `409 qr_orders_disabled`.
+
+## Tracking codes
+
+Every order gets a `trackingCode`, a random string like `x9Qe2Lw7bN4kTs1M`. It's how a guest follows their order:
+
+```bash
+GET /api/v1/public/orders/x9Qe2Lw7bN4kTs1M
+```
+
+The answer shows the status and its history, the items and the bill, but **no staff names or internal IDs**. It also has `canCancel`.
+
+Staff orders get a tracking code too, so it can be printed on a receipt or sent by text.
+
+<Why>
+  Order numbers like `261015-0042` are easy to guess: try 0041, then 0040. If they unlocked an order's details, anyone could read every bill of the day. The tracking code is 16 random characters, so the only way to have it is to be given it.
+</Why>
+
+## Cancelling
+
+A guest can cancel their own order while it's still `pending` and nothing has been paid. Once staff confirm it, the kitchen may have started, so the answer is `409 cancel_not_allowed` and they have to ask a person. The cancel reason is saved as "Cancelled by the customer".
+
+## Keeping pranks out of the kitchen
+
+An endpoint anyone can call will be called by someone with bad intentions. The limits:
+
+| Limit | Applies to |
+| --- | --- |
+| 3 unconfirmed QR orders per table | Placing more is `409 too_many_waiting_orders` until staff deal with them |
+| 3 unconfirmed online orders per phone number | Same |
+| 10 requests per 10 minutes per IP | Placing and cancelling orders |
+| 10 requests per 10 minutes per IP | Placing and cancelling bookings, counted separately |
+| 120 requests a minute per IP | Every public endpoint, reading included |
+
+The table row is locked while a QR order is checked and placed, so two phones at the same table can't both slip past the limit.
+
+If a QR code leaks, say someone photographs it and orders from home, a manager gives the table a new token with `POST /tables/{id}/qr-token`. The old code stops working at once, and the table needs a new printed code.
+
+<Note>
+  The rate limits are counted in memory. With more than one instance, each counts on its own. See [Errors and limits](/concepts/errors-and-limits#rate-limits).
+</Note>
+
+## Table bookings
+
+Website bookings are **off** until a manager sets `acceptsReservations`. Then:
+
+### 1. Find a time
+
+```bash
+GET /api/v1/public/reservations/slots?day=2026-10-16&partySize=4
+```
+
+returns the start times on that day, every 30 minutes from opening, that have at least one free table big enough. Each slot lasts the restaurant's booking length and must end by closing time.
+
+`opensAt` and `closesAt` in the settings are local times. A closing time earlier than the opening time means **open past midnight**: open at 17:00 and close at 01:00 works as you'd hope.
+
+### 2. Book it
+
+```json POST /api/v1/public/reservations
+{
+  "startsAt": "2026-10-16T20:00:00+06:00",
+  "partySize": 4,
+  "customerName": "Nadia",
+  "customerPhone": "01711000000"
+}
+```
+
+| Rule | Refused with |
+| --- | --- |
+| At least an hour ahead | `400 too_short_notice` |
+| At most 60 days ahead | `400 too_far_ahead` |
+| Inside opening hours, start to end | `400 outside_opening_hours`, with `opensAt` and `closesAt` |
+| Up to 20 people. Bigger groups should call | `422 validation_error` |
+| At most 3 upcoming bookings per phone number | `409 too_many_bookings` |
+| A table must be free then | `409 no_table_available` |
+
+The booking comes in as `requested`, **without** a table, and staff confirm it (a table is picked then). With `autoConfirmReservations` switched on, it's confirmed with the smallest free table straight away instead.
+
+### 3. Follow or cancel it
+
+The answer includes a `trackingCode`. With it the guest can check the booking, and cancel it until it starts. If staff decline or cancel it, the guest sees the note they wrote, as `cancelReason`.
