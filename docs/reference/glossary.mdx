@@ -1,0 +1,103 @@
+---
+title: "Glossary"
+description: "Plain explanations of the terms these docs use, from access token to WebSocket."
+icon: "/icons/book-open-text.svg"
+---
+
+Short explanations of the technical words used across these docs, in alphabetical order. Each links to where it matters in this project.
+
+### Access token
+
+A short-lived pass a client sends with every request to prove who it is. Here it's a [JWT](#jwt) that lasts 15 minutes. See [Auth and tokens](/concepts/auth-and-tokens).
+
+### Async
+
+A way of writing code that can wait for something slow, like the database, without blocking everything else. While one request waits for Postgres, the same process serves others. FastAPI, SQLAlchemy and asyncpg are all used this way here.
+
+### Business date
+
+The restaurant's calendar date, in its own time zone. An order at 00:30 in Dhaka is 18:30 the day before in UTC, but its business date is today. Order numbers and reports go by business date.
+
+### CORS
+
+Cross-Origin Resource Sharing. Browsers block a page on one site from calling an API on another unless the API says that site is allowed. The API lists the sites it trusts in `CORS_ORIGINS`.
+
+### Dependency
+
+In FastAPI, a small function a route asks for, which runs before the route and hands it something: a database session, the signed-in user, a role check. See [Architecture](/concepts/architecture#2-dependencies).
+
+### Endpoint
+
+One address on the API that does one thing, like `GET /api/v1/orders` (list orders) or `POST /api/v1/orders/{order_id}/payments` (take a payment).
+
+### Exclusion constraint
+
+A Postgres rule that no two rows may "clash" by a test you choose. Here: no two bookings may have the same table and overlapping times. See [Reservations](/concepts/reservations#no-double-bookings).
+
+### JWT
+
+JSON Web Token: a small piece of signed data, like "user 7, a waiter, valid until 9:45". The API can check the signature without looking anything up, which is fast, but it can't be cancelled before it expires.
+
+### LISTEN and NOTIFY
+
+Postgres's built-in messaging. One connection `LISTEN`s on a channel, and any other can `NOTIFY` it with a short message. The live feed uses it to pass events between instances. See [Live updates](/concepts/live-updates#more-than-one-instance).
+
+### Migration
+
+A small numbered script that changes the database's structure, like adding a column. Alembic runs them in order and remembers which have run. See [Database](/guides/database#migrations).
+
+### OpenAPI
+
+A standard format for describing an API: every endpoint, its parameters and the shape of its answers. FastAPI writes one automatically at `/openapi.json`. The API reference tab and the dashboard's TypeScript types are both made from it.
+
+### ORM
+
+Object-Relational Mapper: code that lets you work with database rows as objects. With SQLAlchemy, an `Order` object is a row in the `orders` table, and `order.total = ...` becomes an `UPDATE`.
+
+### Paisa
+
+One hundredth of a taka. Money is stored with two decimal places, to the paisa, and rounded half up.
+
+### Pooler
+
+A service between the app and the database that shares a few real database connections among many clients. Neon's is PgBouncer. It needs a couple of driver settings to work; see [Database](/guides/database#settings-that-make-the-pooler-happy).
+
+### Rate limit
+
+A cap on how many requests one client may make in a time window, like 5 sign-in attempts in 5 minutes. See [Errors and limits](/concepts/errors-and-limits#rate-limits).
+
+### Refresh token
+
+A longer-lived token (7 days here) used only to get a new access token. It works once; using it again ends the whole session. See [Auth and tokens](/concepts/auth-and-tokens#rotation-and-catching-stolen-tokens).
+
+### Row lock
+
+`SELECT ... FOR UPDATE` locks the rows it reads until the transaction ends. Another request that wants the same row waits its turn. The API locks an order before changing its status or taking a payment.
+
+### Schema
+
+Here, a Pydantic class describing the JSON an endpoint accepts or returns, like `OrderCreate` or `OrderOut`. FastAPI checks every request against it.
+
+### Soft delete
+
+Marking a row as deleted instead of removing it. Foods are soft-deleted, so old orders can still show what was sold.
+
+### Transaction
+
+A group of database changes that happen all together or not at all. An order, its lines, its first history entry and its order number are saved in one.
+
+### Upsert
+
+"Insert, or update if it's already there", in one statement. Order numbers use one to count orders per day without two requests ever getting the same number.
+
+### UTC
+
+Coordinated Universal Time, the time zone-free clock. The API stores every timestamp in UTC and converts to the restaurant's time zone only when it needs the local date or time.
+
+### WebP
+
+A modern image format, usually much smaller than JPEG or PNG for the same quality. Every uploaded photo is converted to it.
+
+### WebSocket
+
+A connection between a client and a server that stays open, so the server can send messages whenever something happens. The live feed is one. See [Live updates](/concepts/live-updates).

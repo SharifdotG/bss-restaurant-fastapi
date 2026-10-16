@@ -3,3 +3,81 @@ title: "CLI"
 description: "The admin, demo data and maintenance commands."
 icon: "/icons/terminal-window.svg"
 ---
+
+import { Source } from "/snippets/source.jsx";
+
+A few jobs don't belong behind an endpoint: creating the very first admin, filling a database with demo data, and tidying up. They're commands in <Source path="app/cli.py" />, built with [Typer](https://typer.tiangolo.com):
+
+```bash
+uv run python -m app.cli --help
+```
+
+They use the same settings as the app, so they act on whatever database `DATABASE_URL` points to. To run one against production from your machine, set it for that one command:
+
+```bash
+DATABASE_URL="<neon pooled url>" uv run python -m app.cli create-admin
+```
+
+## `create-admin`
+
+Creates an admin account. You need it once, on a new database, because there's no public sign-up.
+
+```bash
+uv run python -m app.cli create-admin
+```
+
+It asks for each value, and asks for the password twice without showing it. Or pass them as options:
+
+| Option | |
+| --- | --- |
+| `--email` | The sign-in email |
+| `--first-name`, `--last-name` | The admin's name |
+| `--password` | At least 8 characters, with a letter and a number |
+
+The same rules as the API apply: an email that's already taken is refused, and so is a weak password.
+
+## `seed-demo`
+
+Fills an **empty** database with a demo restaurant: menu, tables, staff with sign-ins, a month of orders, expenses and bookings.
+
+```bash
+uv run python -m app.cli seed-demo
+```
+
+| Option | Default | |
+| --- | --- | --- |
+| `--days` | 30 | Days of past orders and expenses, 1 to 180 |
+| `--password` | Random | The password for every demo account. Printed at the end either way |
+| `--seed` | Random | The same number gives the same data |
+| `--allow-production` | Off | Needed when `ENVIRONMENT=production` |
+
+What it creates, and its rules, are in [Demo data](/guides/demo-data).
+
+## `prune-tokens`
+
+Deletes refresh tokens that have expired, and revoked ones older than 30 days.
+
+```bash
+uv run python -m app.cli prune-tokens
+uv run python -m app.cli prune-tokens --days 7
+```
+
+| Option | Default | |
+| --- | --- | --- |
+| `--days` | 30 | How long to keep revoked tokens |
+
+Every sign-in and every refresh adds a row, so the table grows steadily. Revoked tokens are kept for a while on purpose: if one is used again, the API recognises it as reused and ends that session. A token that's been deleted just looks unknown. Running this now and then is enough; nothing breaks if you never do.
+
+## Other commands you'll use
+
+Not part of the CLI, but you'll type them often:
+
+| Command | Does |
+| --- | --- |
+| `uv run fastapi dev` | Runs the API on port 8000, restarting on every save |
+| `uv run fastapi run` | Runs it without reloading, like production |
+| `uv run alembic upgrade head` | Applies new migrations |
+| `uv run alembic revision --autogenerate -m "..."` | Makes a migration from model changes |
+| `uv run pytest` | Runs the tests |
+| `uv run ruff check .` | Lints |
+| `uv run fastapi deploy` | Deploys to FastAPI Cloud |

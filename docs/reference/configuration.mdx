@@ -1,5 +1,106 @@
 ---
 title: "Configuration"
-description: "Every environment variable the API reads, what it does and its default."
+description: "Every environment variable the API reads, its default, and when to change it."
 icon: "/icons/brackets-curly.svg"
 ---
+
+import { Source } from "/snippets/source.jsx";
+
+Everything is read from environment variables, or from a `.env` file in the project folder. Locally, copy `.env.example` to `.env`; on FastAPI Cloud, use `fastapi cloud env set` (see [Deploy](/guides/deploy-to-fastapi-cloud#settings)).
+
+Settings are read **once, at startup**, by <Source path="app/core/config.py" />, and checked there. A wrong value stops the app from starting with a clear message, instead of failing later on someone's order. After changing one, restart the app.
+
+Names are case-insensitive, and lists are comma separated.
+
+## The app
+
+| Variable | Default | What it does |
+| --- | --- | --- |
+| `ENVIRONMENT` | `local` | `local`, `staging` or `production`. Outside `local`, a real `SECRET_KEY` is required; in `production`, `seed-demo` needs `--allow-production` |
+| `DEBUG` | `false` | More detailed logging |
+| `RESTAURANT_TZ` | `Asia/Dhaka` | The restaurant's time zone. Decides which day an order belongs to, order numbers, opening hours and every report. Must be a real [IANA name](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones) |
+| `DOCS_ENABLED` | `true` | `false` hides `/docs`, `/redoc` and `/openapi.json` |
+
+## Database
+
+| Variable | Default | What it does |
+| --- | --- | --- |
+| `DATABASE_URL` | `postgresql://postgres:postgres@localhost:5432/restaurant` | The app's database. For Neon, paste the **pooled** string as is: the driver, `sslmode` and `channel_binding` are adjusted for you |
+| `DATABASE_URL_DIRECT` | | Used by migrations. Leave empty: for Neon it's worked out from `DATABASE_URL`. Only needed for a provider where that doesn't work |
+| `DB_ECHO` | `false` | Logs every SQL statement. Noisy, but handy when a query is slow |
+
+See [Database](/guides/database#neon) for why pooled and direct are different.
+
+## Security
+
+| Variable | Default | What it does |
+| --- | --- | --- |
+| `SECRET_KEY` | A development-only value | Signs access tokens. **Required outside `local`**: random, at least 32 characters. Changing it makes every access token already handed out invalid at once |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | `15` | How long an access token lasts |
+| `REFRESH_TOKEN_EXPIRE_DAYS` | `7` | How long a refresh token lasts, and so how long someone stays signed in without using the app |
+| `CORS_ORIGINS` | none | The web addresses allowed to call the API from a browser, like `https://your-dashboard.vercel.app`. Exact match: scheme, host and port, no trailing slash |
+
+Generate a key with:
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(48))"
+```
+
+## Rate limits and client IP
+
+| Variable | Default | What it does |
+| --- | --- | --- |
+| `RATE_LIMIT_ENABLED` | `true` | `false` turns off every limit. Only for load testing |
+| `CLIENT_IP_HEADER` | none | A header the edge proxy sets and clients can't fake. **On FastAPI Cloud, `cf-connecting-ip`**. Wins over the setting below |
+| `TRUSTED_PROXY_HOPS` | `0` | How many proxies sit in front of the app, to find the client in `X-Forwarded-For`. 0 to 5. With 0, the connection's own address is used |
+
+See [Errors and limits](/concepts/errors-and-limits#which-ip-address).
+
+## Live updates
+
+| Variable | Default | What it does |
+| --- | --- | --- |
+| `LIVE_BACKEND` | `memory` | `memory` for one instance. `postgres` passes events between instances with `LISTEN`/`NOTIFY`; [read the caveats first](/concepts/live-updates#more-than-one-instance) |
+
+## Images
+
+| Variable | Default | What it does |
+| --- | --- | --- |
+| `STORAGE_BACKEND` | `local` | `local` saves files on disk and serves them from `/media`. `r2` uses Cloudflare R2 |
+| `LOCAL_UPLOAD_DIR` | `uploads` | Where `local` saves files |
+| `MAX_UPLOAD_MB` | `5` | The biggest upload accepted, in megabytes |
+| `R2_ACCOUNT_ID` | | Your Cloudflare account ID |
+| `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | | An R2 API token with read and write access to the bucket |
+| `R2_BUCKET` | | The bucket's name |
+| `R2_PUBLIC_URL` | | The bucket's public address, like `https://pub-xxxx.r2.dev` or your own domain |
+
+With `STORAGE_BACKEND=r2`, every `R2_*` setting is required, and the app won't start without them. See [Images](/concepts/images#where-files-are-stored).
+
+## Tests only
+
+| Variable | Default | What it does |
+| --- | --- | --- |
+| `TEST_DATABASE_URL` | `postgresql://postgres:postgres@localhost:5432/restaurant_test` | The database `pytest` uses. Its name must end in `_test` |
+
+## A local `.env`
+
+```bash .env
+ENVIRONMENT=local
+DEBUG=true
+RESTAURANT_TZ=Asia/Dhaka
+
+# the dashboard's dev server
+CORS_ORIGINS=http://localhost:3000
+DOCS_ENABLED=true
+
+RATE_LIMIT_ENABLED=true
+LIVE_BACKEND=memory
+
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/restaurant
+
+STORAGE_BACKEND=local
+LOCAL_UPLOAD_DIR=uploads
+MAX_UPLOAD_MB=5
+```
+
+`.env` is ignored by git, so your values stay on your machine. `.env.example` is the committed template, with a comment on every line.
