@@ -1,5 +1,87 @@
 ---
 title: "Demo data"
-description: "Fill an empty database with a month of realistic restaurant data."
+description: "What seed-demo creates, its options, and using it on a production database."
 icon: "/icons/package.svg"
 ---
+
+import { Why } from "/snippets/why.jsx";
+import { Source } from "/snippets/source.jsx";
+
+An empty restaurant is hard to judge. `seed-demo` fills an empty database with a believable one: **Shorshe Kitchen** in Dhanmondi, with a month of history and a few orders cooking right now.
+
+```bash
+uv run python -m app.cli seed-demo
+```
+
+```text
+Seeding, against a remote database this takes a few minutes...
+Added 806 orders, 25 bookings and 34 expenses
+Staff logins, all with the password demo-3f9a1c2b7
+  manager  manager@example.com
+  cashier  cashier@example.com
+  waiter   waiter@example.com
+  waiter   waiter2@example.com
+  chef     chef@example.com
+```
+
+The numbers change from run to run. **Keep the password**: it's random and shown only once.
+
+## What you get
+
+| | |
+| --- | --- |
+| **Restaurant** | Shorshe Kitchen, 7.5% VAT, 5% service charge, online orders and website bookings switched on |
+| **Menu** | 26 Bangladeshi dishes in six categories, priced in taka, from Fuchka to Kacchi Biryani. Three have discounts and five are featured |
+| **Tables** | 10 tables: T1 to T7 on the ground floor, by the window and in the family room, and R1 to R3 on the rooftop, seating 2 to 8 |
+| **Staff** | A manager, a cashier, two waiters and a chef, each with an employee record and a sign-in. One waiter serves the T tables, the other the rooftop |
+| **Past orders** | 20 to 30 a day for the last 30 days, 10 more on Fridays and Saturdays, between noon and 10 pm. About 1 in 20 cancelled; the rest served and paid in one go, mostly cash, some card and mobile |
+| **Right now** | Six open orders, from one placed two minutes ago to two already served, so the kitchen board and the dashboard aren't empty |
+| **Expenses** | Rent and salaries on the 1st, market shopping most days, gas cylinders weekly, the odd repair |
+| **Bookings** | Two a day for the past week (a few no-shows), three each evening for the next three days, and two website requests waiting for an answer |
+
+Everything goes through the same code as real use where it matters: orders are priced by the same `build_order()` the API uses, so totals, VAT and order numbers are exactly what the real thing would produce. See <Source path="app/services/demo.py" />.
+
+## Options
+
+| Option | Default | Does |
+| --- | --- | --- |
+| `--days` | 30 | How many days of past orders and expenses, 1 to 180 |
+| `--password` | Random | The password for every demo account |
+| `--seed` | Random | The same number gives the same data every time. Handy for screenshots and tests |
+| `--allow-production` | Off | Needed to run it with `ENVIRONMENT=production` |
+
+```bash
+uv run python -m app.cli seed-demo --days 90 --seed 7 --password "Shorshe2026"
+```
+
+## Rules
+
+- **Only into an empty database.** If there's a menu, a table or an order already, it stops with `not_empty`. It never mixes demo rows into real data.
+- **All or nothing.** Everything is one transaction. If something fails halfway, nothing is saved.
+- **Not in production by accident.** With `ENVIRONMENT=production` it refuses unless you pass `--allow-production`.
+- **Slow over the internet.** Against Neon from your machine it takes a few minutes, because it sends hundreds of orders one round trip at a time.
+
+## Starting over
+
+There's no "reset" command. Locally, throw the database away and make it again:
+
+```bash
+docker compose down -v
+docker compose up -d db
+uv run alembic upgrade head
+uv run python -m app.cli seed-demo
+```
+
+On Neon, make a fresh branch, or reset the branch from its parent in the Neon console, then migrate and seed it.
+
+## A public demo
+
+The dashboard can show one-click "Look around as…" buttons that sign in with these accounts. That's great for showing the project, but every visitor shares the same accounts, and anyone could change the demo manager's password and lock everyone else out.
+
+<Warning>
+  Before switching those buttons on against a public API, make sure the demo accounts can't change passwords, profiles, or other people's accounts, and that `CLIENT_IP_HEADER` is set so every visitor has their own sign-in limit. The [dashboard's settings](https://bss-restaurant-frontend.mintlify.app/reference/environment-variables) explain the switch.
+</Warning>
+
+<Why>
+  The data is Bangladeshi: dishes people here actually order, prices in taka, and Friday and Saturday as the busy days, since that's the weekend here. A generic "Burger, $9.99" demo would never exercise the Dhaka time zone or the taka formatting the dashboard is built around.
+</Why>

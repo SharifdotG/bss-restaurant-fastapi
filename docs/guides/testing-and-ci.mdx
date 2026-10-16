@@ -1,5 +1,117 @@
 ---
 title: "Testing and CI"
-description: "Running the test suite and what the GitHub Actions workflow checks."
+description: "The tests, the real Postgres they run against, and what GitHub Actions checks on every push."
 icon: "/icons/test-tube.svg"
 ---
+
+import { Why } from "/snippets/why.jsx";
+import { Source } from "/snippets/source.jsx";
+
+## Running the tests
+
+With the local Postgres running (`docker compose up -d db`):
+
+```bash
+uv run pytest
+```
+
+There are 229 tests in 16 files under `tests/`, one file per area. They talk to the app the way a client would, over HTTP, and check the JSON that comes back.
+
+| File | Covers |
+| --- | --- |
+| `test_auth.py` | Sign-in, token rotation, reuse revoking the session, expiry, password changes |
+| `test_orders.py` | Pricing, order numbers, status moves by role, editing items |
+| `test_payments.py` | Split bills, change, overpayment, refunds, closing as paid |
+| `test_reservations.py` | Table picking, double bookings, the lifecycle, moving a booking |
+| `test_public.py`, `test_public_reservations.py` | QR and online ordering, limits, tracking, website bookings |
+| `test_live.py`, `test_live_postgres.py` | The WebSocket: auth, topics, snapshots, events, token renewal, and the Postgres relay |
+| `test_reports.py` | Sales by day, week and month, profit, refunds, time zones, CSV |
+| `test_menu.py`, `test_staff_and_tables.py`, `test_users.py`, `test_expenses.py`, `test_uploads.py` | Everything else |
+| `test_demo.py`, `test_health.py` | The demo data and the health check |
+
+## A test reads like a story
+
+```python tests/test_payments.py
+async def test_split_bill_settles_a_served_order(
+    client: AsyncClient,
+    manager: User,
+    cashier: User,
+    menu: dict[str, Food],
+    table: DiningTable,
+) -> None:
+    order = await place(client, manager, [(menu["kacchi"], 2)], tableId=table.id)
+    await serve(client, manager, order)
+
+    first = await pay(client, cashier, order, method="card", amount=300, reference="4242")
+    assert first.status_code == 201
+    assert first.json()["status"] == "served"
+    assert first.json()["balanceDue"] == 500
+
+    second = await pay(client, cashier, order, method="mobile", reference="TRX123")
+
+    body = second.json()
+    assert body["status"] == "paid"
+    assert body["amountPaid"] == 800
+    assert body["balanceDue"] == 0
+```
+
+(Trimmed from <Source path="tests/test_payments.py" />.) Two Kacchi Biryanis at ৳400 after a flat ৳20 off: ৳300 by card leaves ৳500, the mobile payment with no amount pays the rest, and the served order becomes paid by itself.
+
+Test names say what should be true: `test_reusing_a_refresh_token_kills_the_session`, `test_the_database_refuses_overlapping_bookings`, `test_no_show_only_after_the_booking_time`. A failing one tells you which rule broke before you open the file.
+
+## How the test setup works
+
+All of it is in <Source path="tests/conftest.py" />:
+
+- **A real Postgres database**, called `restaurant_test`. It's created if it doesn't exist, and the tests refuse to run against any database whose name doesn't end in `_test`. Point them elsewhere with `TEST_DATABASE_URL`.
+- **The real migrations** build it, so every test run also tests the migrations.
+- **A clean slate after every test.** Every table is truncated, and the rate limiter forgets its counts, since all test requests come from the same address.
+- **No server.** [httpx](https://www.python-httpx.org) sends requests straight into the app in memory, and httpx-ws does the same for WebSockets.
+- **Factories** like `make_user(UserRole.CASHIER)` create what a test needs, and `auth_header(user)` signs a token for them without going through sign-in.
+- **Uploads** go to a temporary folder.
+
+<Why>
+  I test against Postgres, not SQLite, because the interesting rules live in Postgres: the exclusion constraint against double bookings, the order number upsert, `FOR UPDATE` locks, time zone maths in the reports. A fake database would pass tests the real one fails.
+</Why>
+
+## Linting
+
+```bash
+uv run ruff check .
+uv run ruff format .
+```
+
+[Ruff](https://docs.astral.sh/ruff/) checks style, import order, likely bugs, outdated syntax and async mistakes like a blocking call inside an `async` function. The rules are in <Source path="pyproject.toml" />, with lines up to 100 characters.
+
+## CI
+
+<Source path=".github/workflows/ci.yml" /> runs on every push to `main` and every pull request, in two jobs side by side:
+
+| Job | Runs |
+| --- | --- |
+| **lint** | `ruff check .` and `ruff format --check .` |
+| **test** | Starts a Postgres 18 service, runs `pytest`, then `alembic check` |
+
+```yaml .github/workflows/ci.yml
+- run: uv run pytest
+# the models and the migrations must agree, tests leave the test db at head
+- name: migrations up to date
+  run: uv run alembic check
+  env:
+    DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+```
+
+`alembic check` fails if a model changed without a migration to match. That catches the classic mistake: adding a column to a model, testing it locally against a database you altered by hand, and shipping code that crashes in production because the column was never created.
+
+Both jobs install with `uv sync --locked`, which fails if `uv.lock` doesn't match `pyproject.toml`, so CI always tests the exact versions that will be deployed.
+
+## Before you deploy
+
+```bash
+uv run ruff check .
+uv run ruff format --check .
+uv run pytest
+uv run alembic check
+```
+
+The same four checks as CI. If they pass on your machine, they'll pass there.
