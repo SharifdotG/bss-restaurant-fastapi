@@ -1,5 +1,100 @@
 ---
 title: "Roles"
-description: "Five staff roles and what each one is allowed to do."
+description: "The five roles, what each can call, and the finer rules inside orders and staff accounts."
 icon: "/icons/shield-check.svg"
 ---
+
+import { Why } from "/snippets/why.jsx";
+import { Source } from "/snippets/source.jsx";
+
+Every account has exactly one role. Roles follow the jobs people actually do in a restaurant, so each one can do its own work and not much else.
+
+| Role | Who | In short |
+| --- | --- | --- |
+| `admin` | The owner | Everything, always |
+| `manager` | Runs the floor and the books | Everything except managing admin and manager accounts |
+| `cashier` | At the till | Orders, payments, bookings, expenses, the dashboard |
+| `waiter` | On the floor | Orders and bookings |
+| `chef` | In the kitchen | Moves orders through the kitchen, marks dishes sold out |
+
+## Accounts and employees
+
+Two different things, often confused:
+
+- A **user** is a login: an email, a password and a role. Managed at `/users`.
+- An **employee** is a staff record: name, phone, designation, salary, join date. Managed at `/employees`.
+
+An employee can have a user account (created in the same request, or later with `POST /employees/{id}/account`), and most do. But a part-time cleaner might be an employee with no login, and the owner might have a login with no employee record. Orders point at the **employee** as their waiter, because that's who served the table.
+
+## Who can call what
+
+Every endpoint needs a signed-in user unless it's under `/public` or `/auth`. On top of that:
+
+| Area | Read | Change |
+| --- | --- | --- |
+| Restaurant settings | Everyone | Manager |
+| Users | Manager | Manager |
+| Employees | Manager | Manager |
+| Categories and foods | Everyone | Manager. Chefs can also switch a food's availability |
+| Tables | Everyone | Manager |
+| Orders | Everyone | Manager, waiter, cashier. Status moves have their own rules, below |
+| Payments | | Manager, cashier |
+| Refunds | | Manager |
+| Receipts | Everyone | |
+| Reservations | Everyone | Manager, waiter, cashier |
+| Expenses | Manager, cashier | Manager, cashier. Only managers delete |
+| Dashboard | Manager, cashier | |
+| Reports and CSV exports | Manager | |
+| Image uploads | | Everyone |
+
+Admins pass every check, so they're left out of the table. Each endpoint in the API reference tab lists its roles too.
+
+In code, each router declares who it lets in with `require_roles`, as a type it can reuse:
+
+```python app/api/v1/payments.py
+Cashier = Annotated[User, Depends(require_roles(UserRole.MANAGER, UserRole.CASHIER))]
+```
+
+A role that isn't allowed gets `403 permission_denied`.
+
+## Order status moves
+
+`POST /orders/{id}/status` is open to every role, because everyone moves orders along. The service then checks the **move** itself, in <Source path="app/services/orders.py" />:
+
+```python app/services/orders.py
+# who may move an order into each status (admins always can)
+STATUS_ROLES: dict[OrderStatus, set[UserRole]] = {
+    OrderStatus.CONFIRMED: {UserRole.MANAGER, UserRole.WAITER, UserRole.CASHIER},
+    OrderStatus.PREPARING: {UserRole.MANAGER, UserRole.CHEF},
+    OrderStatus.READY: {UserRole.MANAGER, UserRole.CHEF},
+    OrderStatus.SERVED: {UserRole.MANAGER, UserRole.WAITER},
+    OrderStatus.CANCELLED: {UserRole.MANAGER, UserRole.WAITER, UserRole.CASHIER},
+}
+```
+
+| Move to | Allowed |
+| --- | --- |
+| `confirmed` | Manager, waiter, cashier |
+| `preparing`, `ready` | Manager, chef |
+| `served` | Manager, waiter |
+| `cancelled` | Manager, waiter, cashier. Once the kitchen is cooking (`preparing`), **manager only** |
+| `paid` | Nobody. It happens by itself when the bill is settled |
+
+Every order in a response has `nextStatuses`, the moves the order's state allows. It isn't filtered by role, so a client should also check its own role before showing a button. See [Orders](/concepts/orders).
+
+## Managing staff accounts
+
+Managers can manage staff, but not each other, and some changes are refused for everyone:
+
+- **Only admins** create, edit, reset or deactivate `admin` and `manager` accounts, or give someone those roles. A manager trying gets `403`.
+- **Nobody** can change their own role or deactivate themselves.
+- **The last active admin** can't be demoted or deactivated (`409 last_admin`), so the restaurant is never locked out.
+- **Nothing is deleted.** `DELETE /users/{id}` deactivates the account and signs it out everywhere. Old orders still show who took them.
+
+<Why>
+  The app this one was ported from had no roles at all: anyone signed in could do anything. I kept the roles close to how a real restaurant works, so a waiter can't refund a bill and a chef can't see the takings, without making anyone ask a manager for routine things.
+</Why>
+
+## The live feed
+
+The WebSocket follows the same idea. Chefs can only follow the `orders` topic; asking for `reservations` closes the connection with code `4403`. Everyone else can follow both. See [Live updates](/concepts/live-updates#topics).

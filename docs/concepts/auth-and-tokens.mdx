@@ -1,5 +1,155 @@
 ---
 title: "Auth and tokens"
-description: "Short-lived access tokens, single-use refresh tokens and token families."
+description: "Signing in, short-lived access tokens, single-use refresh tokens, and what happens when one is stolen."
 icon: "/icons/key.svg"
 ---
+
+import { Why } from "/snippets/why.jsx";
+import { Source } from "/snippets/source.jsx";
+
+There's no public sign-up. The first admin is made with the [CLI](/reference/cli#create-admin), and every other account is created by an admin or manager. Once someone has an account, signing in gives them two tokens with very different jobs.
+
+## Two tokens
+
+| | Access token | Refresh token |
+| --- | --- | --- |
+| **What it's for** | Proving who you are on every request | Getting a new pair when the access token runs out |
+| **Lives for** | 15 minutes (`ACCESS_TOKEN_EXPIRE_MINUTES`) | 7 days (`REFRESH_TOKEN_EXPIRE_DAYS`) |
+| **Looks like** | A [JWT](/reference/glossary#jwt) | 64 random characters |
+| **Stored by the API** | Nowhere. The signature is enough | Only its SHA-256 hash, in `refresh_tokens` |
+| **Can be used** | As often as you like until it expires | **Once** |
+
+## Signing in
+
+```bash
+curl -X POST http://localhost:8000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "manager@example.com", "password": "..."}'
+```
+
+```json
+{
+  "accessToken": "eyJhbGciOiJIUzI1NiIs...",
+  "refreshToken": "Yp0k3uD9...",
+  "tokenType": "bearer",
+  "expiresIn": 900,
+  "user": { "id": 2, "email": "manager@example.com", "role": "manager", "...": "..." }
+}
+```
+
+Then send the access token with every request:
+
+```bash
+curl http://localhost:8000/api/v1/orders \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIs..."
+```
+
+A wrong email and a wrong password get the same answer, `401 invalid_credentials`, and take the same time: when the email doesn't exist, the API still checks the password against a dummy hash. Otherwise someone could find out which emails have accounts by timing the replies.
+
+## What's inside an access token
+
+```python app/core/security.py
+payload = {
+    "sub": str(user_id),
+    "role": role,
+    "type": "access",
+    "iat": now,
+    "exp": now + lifetime,
+}
+token = jwt.encode(payload, settings.secret_key, algorithm=ALGORITHM)
+```
+
+It's signed with `SECRET_KEY` using HS256. Anyone can read what's inside, but nobody without the key can change it. On every request <Source path="app/api/deps.py" /> checks the signature and the expiry, then **loads the user from the database**. So a deactivated account is locked out on its very next request, and a role change applies straight away, even though the old token still says the old role.
+
+## Refreshing
+
+When an access token expires, the API answers:
+
+```json
+{ "detail": "Access token has expired", "code": "token_expired" }
+```
+
+That `code` is the client's cue to refresh. Any other 401 means the token is bad, and the client should sign out.
+
+```bash
+curl -X POST http://localhost:8000/api/v1/auth/refresh \
+  -H "Content-Type: application/json" \
+  -d '{"refreshToken": "Yp0k3uD9..."}'
+```
+
+The answer is a whole new pair, in the same shape as sign-in. The refresh token you sent is now used up.
+
+## Rotation, and catching stolen tokens
+
+Every refresh token belongs to a **family**: the chain of tokens that started with one sign-in. Using a token revokes it and issues the next one in the same family.
+
+```mermaid
+sequenceDiagram
+  participant C as Client
+  participant A as API
+  C->>A: sign in
+  A-->>C: refresh token R1 (family F)
+  C->>A: refresh with R1
+  A-->>C: R2 (R1 revoked)
+  C->>A: refresh with R2
+  A-->>C: R3 (R2 revoked)
+  Note over C,A: someone else tries the old R1
+  C->>A: refresh with R1
+  A-->>C: 401, and every token in family F is revoked
+```
+
+A revoked token showing up again means two parties have a copy of it, and the API can't tell which one is the real user. So it ends the whole session, and both have to sign in again:
+
+```python app/services/auth.py
+if token.revoked_at is not None:
+    # an already rotated token came back, someone else has a copy of it
+    logger.warning("refresh token reuse detected for user %s, revoking session", token.user_id)
+    await _revoke(session, RefreshToken.family_id == token.family_id)
+    await session.commit()
+    raise _invalid_refresh()
+```
+
+The token row is locked (`FOR UPDATE`) while it's checked, so two refreshes with the same token at the same moment can't both succeed.
+
+<Warning>
+  This also catches honest mistakes. If a client refreshes twice in parallel, say from two browser tabs, the second refresh uses a token the first just rotated, and the user is signed out. **Refresh one at a time.** The dashboard docs explain [how it does that across tabs](https://bss-restaurant-frontend.mintlify.app/how-it-works/sign-in-and-sessions#the-hard-part-several-tabs).
+</Warning>
+
+<Why>
+  A grace window, where reusing a token is forgiven for a few seconds, would make clients easier to write. I kept the API strict because a stolen token is exactly the case where a grace window helps the wrong person, and the dashboard proves a client can get this right.
+</Why>
+
+## Signing out
+
+| Endpoint | What it ends |
+| --- | --- |
+| `POST /auth/logout` with the refresh token | That one session (its family). Unknown tokens are ignored, so it's safe to call twice |
+| `POST /auth/logout-all` | Every session of the signed-in user, on every device |
+
+Access tokens can't be taken back, so an access token keeps working until it expires, at most 15 minutes. That's the trade for not looking it up on every request.
+
+## Things that sign you out everywhere
+
+These revoke every refresh token of the account:
+
+- Changing your own password with `POST /auth/me/password`. That one returns a **fresh pair** for the device that made the change, so you stay signed in there.
+- An admin or manager resetting your password with `POST /users/{id}/reset-password`.
+- Your account being deactivated.
+
+## Limits on signing in
+
+| Limit | Counts |
+| --- | --- |
+| 20 attempts a minute | Per IP address |
+| 5 attempts in 5 minutes | Per account, from one IP address |
+
+Past either one, the API answers `429` with a `Retry-After` header. The per-account limit stops one machine guessing one person's password; the per-IP limit stops it trying many accounts. See [Errors and limits](/concepts/errors-and-limits#rate-limits).
+
+## Passwords
+
+- At least 8 characters, at most 128, with at least one letter and one number.
+- Hashed with **Argon2** through [pwdlib](https://frankie567.github.io/pwdlib/). When the recommended settings change, an old hash is replaced with a new one the next time that person signs in.
+
+## The Authorize button in /docs
+
+Swagger's **Authorize** dialog expects the standard OAuth2 password form, which is slightly different from `/auth/login`. `POST /auth/token` exists only for it: put the email in **username**. It returns just an access token, and has the same sign-in limits.
