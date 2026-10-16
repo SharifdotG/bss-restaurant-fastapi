@@ -1,5 +1,69 @@
 ---
 title: "Project structure"
-description: "Where things live in the repo, from routers to services to models."
+description: "Where everything lives, and which folder to open for which kind of change."
 icon: "/icons/tree-structure.svg"
 ---
+
+import { Source } from "/snippets/source.jsx";
+
+```text
+app/
+  api/
+    deps.py         shared dependencies: database session, current user, role checks
+    v1/             one router per area: orders.py, payments.py, reservations.py, ...
+  core/             the plumbing: settings, database, errors, pagination, rate limits, live hub
+  models/           SQLAlchemy models, one file per area
+  schemas/          Pydantic models for requests and responses (camelCase over the wire)
+  services/         the business rules, one file per area
+  storage/          where images go: a local folder or Cloudflare R2
+  templates/        receipt.html, the printable bill
+  cli.py            create-admin, seed-demo, prune-tokens
+  main.py           builds the app: middleware, error handlers, routers
+alembic/
+  versions/         one file per database change, applied in order
+tests/              one file per area, against a real Postgres
+docs/               this site
+.github/workflows/  ci.yml: lint, tests, migration check
+compose.yaml        local Postgres
+pyproject.toml      dependencies and tool settings
+```
+
+## Four layers
+
+Most areas, like orders, show up in four folders. Each has one job:
+
+| Folder | Its job | For orders |
+| --- | --- | --- |
+| `api/v1/` | The door: the URL, who may knock, what comes in and goes out | <Source path="app/api/v1/orders.py" /> |
+| `schemas/` | The shape of the JSON, with its limits | <Source path="app/schemas/order.py" /> |
+| `services/` | The rules: prices, status moves, what's allowed when | <Source path="app/services/orders.py" /> |
+| `models/` | The tables in the database | <Source path="app/models/order.py" /> |
+
+Routes stay thin. A route function picks its dependencies, calls one service function, and returns what it gets back:
+
+```python app/api/v1/orders.py
+@router.post("", response_model=OrderDetailOut, status_code=status.HTTP_201_CREATED)
+async def create_order(body: OrderCreate, session: SessionDep, actor: FrontOfHouse) -> Order:
+    return await order_service.create_order(session, actor, body)
+```
+
+All the real work, and every rule worth testing, is in the service. That keeps the rules in one place: the public QR ordering and the demo data both build their orders with the same `build_order()` the staff route uses. [Architecture](/concepts/architecture) follows one request through all four layers.
+
+## Where to look
+
+| You want to change... | Open |
+| --- | --- |
+| A rule, like who can cancel an order | `app/services/` for that area |
+| A field in a request or response | `app/schemas/`, then the model if it's stored |
+| A column or a table | `app/models/`, then [make a migration](/guides/database#migrations) |
+| Which roles can call an endpoint | The router in `app/api/v1/`, see [Roles](/concepts/roles) |
+| An error message | The service that raises it. Codes are listed in [Errors and limits](/concepts/errors-and-limits) |
+| A setting | <Source path="app/core/config.py" /> and `.env.example` |
+| The receipt's layout | <Source path="app/templates/receipt.html" /> |
+| What `seed-demo` creates | <Source path="app/services/demo.py" /> |
+
+## Naming
+
+- **Python is snake_case, JSON is camelCase.** `balance_due` in Python is `balanceDue` over the wire. Every schema inherits from `CamelModel` in <Source path="app/schemas/common.py" />, which does the conversion both ways.
+- **Request and response schemas are separate.** `OrderCreate` is what a client sends, `OrderOut` and `OrderDetailOut` are what it gets back. Fields only the server sets, like prices and totals, exist only on the way out, so a client can't send them.
+- **Tables are plural, models singular.** The `Order` model is the `orders` table. Restaurant tables are the exception: `Table` is already a class in SQLAlchemy, so the model is `DiningTable` and the table `dining_tables`.

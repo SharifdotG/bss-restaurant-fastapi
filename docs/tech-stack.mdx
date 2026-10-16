@@ -1,5 +1,78 @@
 ---
 title: "Tech stack"
-description: "Every library and service the API uses, what it does here and why it was picked."
+description: "Every library and service the API uses, what it does here, and why it was picked."
 icon: "/icons/stack.svg"
 ---
+
+import { Why } from "/snippets/why.jsx";
+import { Source } from "/snippets/source.jsx";
+
+The whole list is short on purpose. Every package below is in <Source path="pyproject.toml" />, and each one earns its place.
+
+## The core
+
+| Package | What it does here |
+| --- | --- |
+| [FastAPI](https://fastapi.tiangolo.com) | The web framework. It turns Python functions into endpoints, checks every request against its schema, and writes the OpenAPI file that the API reference tab and the dashboard's types are built from |
+| [Pydantic](https://docs.pydantic.dev) v2 | Describes the shape of every request and response. It's what turns `{"foodId": 3}` into a Python object and back, and it rejects bad input before any of our code runs |
+| [SQLAlchemy](https://www.sqlalchemy.org) 2.1 | The ORM: Python classes for tables, and queries written in Python. Used in its async form, so a slow query doesn't block other requests |
+| [asyncpg](https://magicstack.github.io/asyncpg/) | The Postgres driver underneath SQLAlchemy. Fast, and async from the start |
+| [Alembic](https://alembic.sqlalchemy.org) | Database migrations: each change to the tables is a small numbered script. See [Database](/guides/database#migrations) |
+| [PostgreSQL](https://www.postgresql.org) | The database. [Neon](https://neon.tech) in production, Docker locally |
+
+<Why>
+  Async pays off most in the live feed. A kitchen screen keeps a WebSocket open for hours, and in a sync app every open connection would hold a thread. Async lets one process keep many of them open while it answers ordinary requests, so the whole stack is async, down to the database driver.
+</Why>
+
+## Security
+
+| Package | What it does here |
+| --- | --- |
+| [pwdlib](https://frankie567.github.io/pwdlib/) with Argon2 | Hashes passwords. Argon2 is the current recommendation for passwords, and pwdlib upgrades old hashes when someone signs in |
+| [PyJWT](https://pyjwt.readthedocs.io) | Signs and checks the 15-minute access tokens. See [Auth and tokens](/concepts/auth-and-tokens) |
+
+## Files and printing
+
+| Package | What it does here |
+| --- | --- |
+| [Pillow](https://python-pillow.org) | Opens every uploaded image, turns it the right way up, shrinks it to 1600 px and saves it as WebP |
+| [boto3](https://boto3.amazonaws.com/v1/documentation/api/latest/index.html) | Talks to [Cloudflare R2](https://developers.cloudflare.com/r2/), which speaks the same language as Amazon S3. See [Images](/concepts/images) |
+| [Jinja2](https://jinja.palletsprojects.com) | Fills in the [printable receipt](/concepts/payments-and-refunds#receipts) template. It comes with `fastapi[standard]` |
+
+## Small but necessary
+
+| Package | What it does here |
+| --- | --- |
+| `fastapi[standard]` | Brings the `fastapi` command (`fastapi dev`, `fastapi deploy`), Uvicorn to serve the app, and [Typer](https://typer.tiangolo.com), which the [CLI](/reference/cli) is built with |
+| `pydantic-settings` | Reads the settings from environment variables and `.env`, and refuses to start when one is wrong. See <Source path="app/core/config.py" /> |
+| [tzdata](https://pypi.org/project/tzdata/) | The world's time zone rules as a package. Windows doesn't ship them, and without them `Asia/Dhaka` can't be found |
+
+## For development
+
+| Tool | What it does here |
+| --- | --- |
+| [uv](https://docs.astral.sh/uv/) | Installs Python and the packages, locks exact versions in `uv.lock`, and runs commands with `uv run` |
+| [Ruff](https://docs.astral.sh/ruff/) | Lints and formats the code. One fast tool instead of four |
+| [pytest](https://docs.pytest.org) | Runs the tests, against a real Postgres. See [Testing and CI](/guides/testing-and-ci) |
+| [httpx-ws](https://frankie567.github.io/httpx-ws/) | Lets the tests open WebSockets against the app without starting a server |
+
+## Services
+
+| Service | What it does |
+| --- | --- |
+| [FastAPI Cloud](https://fastapicloud.com) | Runs the app. `fastapi deploy` uploads the code and it's live |
+| [Neon](https://neon.tech) | Serverless Postgres. It sleeps when nobody uses it and wakes on the first query |
+| [Cloudflare R2](https://developers.cloudflare.com/r2/) | Stores menu photos and receipt pictures, served straight to browsers |
+| [GitHub Actions](https://docs.github.com/actions) | Runs lint, tests and a migration check on every push |
+
+<Why>
+  The project started as a FastAPI port of [bss-rms](https://github.com/capt-farvez/bss-rms), an ASP.NET Core and Angular app. In FastAPI the schema, the validation and the docs are one thing, written once. The parts that bothered me there, like prices coming from the browser, no roles, and images stored as base64 in the database, were redesigned rather than copied.
+</Why>
+
+## What's not here
+
+Some things you might expect, and why they're missing:
+
+- **No Redis.** The rate limiter and the live feed keep their state in memory, and the live feed can share events between instances through Postgres instead. One fewer service to run. See [Live updates](/concepts/live-updates#more-than-one-instance).
+- **No task queue.** Nothing the API does is slow enough to need one. Images are converted in a worker thread while the request waits.
+- **No ORM-generated admin panel.** The [staff dashboard](https://bss-restaurant-frontend.mintlify.app) is the admin.

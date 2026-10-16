@@ -3,3 +3,133 @@ title: "Quickstart"
 description: "Run the API locally with Postgres, create an admin and fill it with demo data."
 icon: "/icons/rocket-launch.svg"
 ---
+
+import { Source } from "/snippets/source.jsx";
+import { Figure } from "/snippets/figure.jsx";
+
+By the end of this page you'll have the API running on your machine at [localhost:8000](http://localhost:8000), a database full of demo orders and bookings, and staff accounts to sign in with.
+
+## What you need
+
+| Tool | Why | Get it |
+| --- | --- | --- |
+| **uv** | Installs Python 3.13 and every package, and runs the commands | [docs.astral.sh/uv](https://docs.astral.sh/uv/getting-started/installation/) |
+| **Docker** | Runs Postgres locally | [Docker Desktop](https://www.docker.com/products/docker-desktop/) |
+| **Git** | To clone the repo | [git-scm.com](https://git-scm.com) |
+
+You don't need to install Python yourself. uv reads `requires-python = ">=3.13"` from <Source path="pyproject.toml" /> and downloads a matching Python the first time you run anything.
+
+<Tip>
+  No Docker? A free [Neon](https://neon.tech) database works just as well. Create a branch, copy its **pooled** connection string into `DATABASE_URL` in step 2, and skip step 3.
+</Tip>
+
+## Run it
+
+<Steps>
+  <Step title="Clone and install">
+    ```bash
+    git clone https://github.com/SharifdotG/bss-restaurant-fastapi.git
+    cd bss-restaurant-fastapi
+    uv sync
+    ```
+
+    `uv sync` creates a `.venv` folder with the exact versions in `uv.lock`, so everyone gets the same packages.
+  </Step>
+  <Step title="Create your settings file">
+    ```bash
+    cp .env.example .env
+    ```
+
+    The defaults work for local development: a Postgres at `localhost:5432`, images saved in an `uploads/` folder, and a development-only signing key. Every setting is explained in [Configuration](/reference/configuration).
+  </Step>
+  <Step title="Start Postgres">
+    ```bash
+    docker compose up -d db
+    ```
+
+    This starts Postgres 18 from <Source path="compose.yaml" />, with a database called `restaurant` and the password `postgres`. The data lives in a Docker volume, so it survives restarts.
+  </Step>
+  <Step title="Create the tables">
+    ```bash
+    uv run alembic upgrade head
+    ```
+
+    [Alembic](/guides/database#migrations) runs every migration in `alembic/versions/` in order, from an empty database to the current schema.
+  </Step>
+  <Step title="Create the first admin">
+    ```bash
+    uv run python -m app.cli create-admin
+    ```
+
+    It asks for an email, a name and a password. There's no public sign-up: the first admin is made here, and everyone else is added by an admin or manager through `/users`.
+  </Step>
+  <Step title="Add demo data (optional)">
+    ```bash
+    uv run python -m app.cli seed-demo
+    ```
+
+    This fills the empty database with a Bangladeshi menu, 10 tables, five staff accounts, about a month of paid orders, a few orders cooking right now, expenses and bookings. **Note the password it prints at the end**: every demo account uses it. More in [Demo data](/guides/demo-data).
+  </Step>
+  <Step title="Start the API">
+    ```bash
+    uv run fastapi dev
+    ```
+
+    `fastapi dev` finds the app through `[tool.fastapi]` in `pyproject.toml` and restarts it whenever you save a file.
+  </Step>
+</Steps>
+
+## Check it works
+
+```bash
+curl http://localhost:8000/api/v1/health
+```
+
+```json
+{ "status": "ok", "database": "ok", "version": "1.0.0", "environment": "local" }
+```
+
+If `database` says `unreachable`, Postgres isn't running or `DATABASE_URL` points somewhere else.
+
+## Try it in the browser
+
+FastAPI writes interactive docs for every endpoint. Open [localhost:8000/docs](http://localhost:8000/docs):
+
+1. Click **Authorize** at the top right.
+2. Put an email in **username** (yes, the email) and the password in **password**. With demo data, `manager@example.com` is a good start.
+3. Open any endpoint, click **Try it out**, then **Execute**.
+
+<Figure src="/images/swagger.webp" alt="FastAPI's Swagger UI for BSS Restaurant API, with the Authorize button and the health and auth endpoints" caption="The interactive docs FastAPI serves at /docs. Authorize is on the right." />
+
+`GET /api/v1/dashboard` is a nice first call: it returns today's sales, open orders and table occupancy in one go.
+
+## Connect the dashboard
+
+The [staff dashboard](https://bss-restaurant-frontend.mintlify.app/quickstart) runs on `http://localhost:3000`. Browsers only let it call the API if the API lists that address, so add it to `CORS_ORIGINS` in `.env`:
+
+```bash .env
+CORS_ORIGINS=http://localhost:3000
+```
+
+Restart `fastapi dev` after changing `.env`. Settings are read once, when the app starts.
+
+## If something goes wrong
+
+<AccordionGroup>
+  <Accordion title="Port 5432 is already in use">
+    Another Postgres is running on your machine. Stop it, or change the left side of `"5432:5432"` in `compose.yaml` to something like `"5433:5432"` and use port 5433 in `DATABASE_URL`.
+  </Accordion>
+  <Accordion title="seed-demo says the database isn't empty">
+    It only fills an empty database, so it never mixes demo rows into real data. To start over locally, remove the volume and run the steps again from step 3:
+
+    ```bash
+    docker compose down -v
+    ```
+  </Accordion>
+  <Accordion title="The dashboard says it can't reach the API">
+    Check `CORS_ORIGINS` includes the dashboard's exact address, with `http://` and the port and no trailing slash, then restart the API. The browser's console names the blocked origin.
+  </Accordion>
+  <Accordion title="Sign-in answers 429 Too Many Requests">
+    The API allows 5 attempts per account per IP in 5 minutes. Wait for the time in the `Retry-After` header, or restart the API: the counts live in memory. See [Errors and limits](/concepts/errors-and-limits#rate-limits).
+  </Accordion>
+</AccordionGroup>
