@@ -73,14 +73,172 @@
             "group": "Reference",
             "pages": [
               "reference/configuration",
-              "reference/cli"
+              "reference/cli",
+              "reference/glossary"
             ]
           }
         ]
       },
       {
         "tab": "API reference",
-        "openapi": "openapi.json"
+        "openapi": "openapi.json",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "api-reference/introduction",
+              "GET /api/v1/health"
+            ]
+          },
+          {
+            "group": "Sign-in",
+            "pages": [
+              "POST /api/v1/auth/login",
+              "POST /api/v1/auth/refresh",
+              "POST /api/v1/auth/logout",
+              "POST /api/v1/auth/logout-all",
+              "GET /api/v1/auth/me",
+              "PATCH /api/v1/auth/me",
+              "POST /api/v1/auth/me/password",
+              "POST /api/v1/auth/token"
+            ]
+          },
+          {
+            "group": "Restaurant",
+            "pages": [
+              "GET /api/v1/restaurant",
+              "PATCH /api/v1/restaurant"
+            ]
+          },
+          {
+            "group": "Menu",
+            "pages": [
+              "GET /api/v1/categories",
+              "POST /api/v1/categories",
+              "GET /api/v1/categories/{category_id}",
+              "PATCH /api/v1/categories/{category_id}",
+              "DELETE /api/v1/categories/{category_id}",
+              "GET /api/v1/foods",
+              "POST /api/v1/foods",
+              "GET /api/v1/foods/{food_id}",
+              "PATCH /api/v1/foods/{food_id}",
+              "PUT /api/v1/foods/{food_id}/availability",
+              "DELETE /api/v1/foods/{food_id}"
+            ]
+          },
+          {
+            "group": "Tables",
+            "pages": [
+              "GET /api/v1/tables",
+              "POST /api/v1/tables",
+              "GET /api/v1/tables/{table_id}",
+              "PATCH /api/v1/tables/{table_id}",
+              "PUT /api/v1/tables/{table_id}/employees",
+              "POST /api/v1/tables/{table_id}/qr-token",
+              "DELETE /api/v1/tables/{table_id}"
+            ]
+          },
+          {
+            "group": "Staff accounts",
+            "pages": [
+              "GET /api/v1/users",
+              "POST /api/v1/users",
+              "GET /api/v1/users/{user_id}",
+              "PATCH /api/v1/users/{user_id}",
+              "POST /api/v1/users/{user_id}/reset-password",
+              "DELETE /api/v1/users/{user_id}"
+            ]
+          },
+          {
+            "group": "Employees",
+            "pages": [
+              "GET /api/v1/employees",
+              "POST /api/v1/employees",
+              "GET /api/v1/employees/{employee_id}",
+              "PATCH /api/v1/employees/{employee_id}",
+              "POST /api/v1/employees/{employee_id}/account",
+              "DELETE /api/v1/employees/{employee_id}"
+            ]
+          },
+          {
+            "group": "Uploads",
+            "pages": [
+              "POST /api/v1/uploads/images"
+            ]
+          },
+          {
+            "group": "Orders",
+            "pages": [
+              "GET /api/v1/orders",
+              "POST /api/v1/orders",
+              "GET /api/v1/orders/{order_id}",
+              "PATCH /api/v1/orders/{order_id}",
+              "PUT /api/v1/orders/{order_id}/items",
+              "POST /api/v1/orders/{order_id}/items",
+              "POST /api/v1/orders/{order_id}/status"
+            ]
+          },
+          {
+            "group": "Payments",
+            "pages": [
+              "POST /api/v1/orders/{order_id}/payments",
+              "POST /api/v1/orders/{order_id}/refunds",
+              "GET /api/v1/orders/{order_id}/receipt"
+            ]
+          },
+          {
+            "group": "Reservations",
+            "pages": [
+              "GET /api/v1/reservations",
+              "POST /api/v1/reservations",
+              "GET /api/v1/reservations/availability",
+              "GET /api/v1/reservations/{reservation_id}",
+              "PATCH /api/v1/reservations/{reservation_id}",
+              "POST /api/v1/reservations/{reservation_id}/status"
+            ]
+          },
+          {
+            "group": "Expenses",
+            "pages": [
+              "GET /api/v1/expenses",
+              "POST /api/v1/expenses",
+              "GET /api/v1/expenses/{expense_id}",
+              "PATCH /api/v1/expenses/{expense_id}",
+              "DELETE /api/v1/expenses/{expense_id}"
+            ]
+          },
+          {
+            "group": "Dashboard and reports",
+            "pages": [
+              "GET /api/v1/dashboard",
+              "GET /api/v1/reports/sales",
+              "GET /api/v1/reports/top-foods",
+              "GET /api/v1/reports/expenses",
+              "GET /api/v1/reports/staff",
+              "GET /api/v1/reports/sales.csv",
+              "GET /api/v1/reports/top-foods.csv",
+              "GET /api/v1/reports/expenses.csv",
+              "GET /api/v1/reports/staff.csv",
+              "GET /api/v1/reports/orders.csv"
+            ]
+          },
+          {
+            "group": "Public",
+            "pages": [
+              "GET /api/v1/public/restaurant",
+              "GET /api/v1/public/menu",
+              "GET /api/v1/public/tables/{qr_token}",
+              "POST /api/v1/public/tables/{qr_token}/orders",
+              "POST /api/v1/public/orders",
+              "GET /api/v1/public/orders/{tracking_code}",
+              "POST /api/v1/public/orders/{tracking_code}/cancel",
+              "GET /api/v1/public/reservations/slots",
+              "POST /api/v1/public/reservations",
+              "GET /api/v1/public/reservations/{tracking_code}",
+              "POST /api/v1/public/reservations/{tracking_code}/cancel"
+            ]
+          }
+        ]
       }
     ]
   },

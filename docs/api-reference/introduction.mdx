@@ -1,0 +1,64 @@
+---
+title: "Introduction"
+description: "What every endpoint has in common: the base URL, signing in, JSON, money, dates, lists and errors."
+icon: "/icons/book-open-text.svg"
+---
+
+Every endpoint in this tab comes straight from the API's OpenAPI schema, so the fields, types and limits are exactly what the code checks. Each page also says **who can call it**. This page covers what they all share.
+
+## Base URL
+
+```text
+http://localhost:8000/api/v1
+```
+
+Locally, after the [Quickstart](/quickstart). In production, it's your FastAPI Cloud address with `/api/v1` on the end. Every path in this tab already includes `/api/v1`.
+
+## Signing in
+
+Most endpoints need an access token in the `Authorization` header:
+
+```bash
+curl http://localhost:8000/api/v1/orders \
+  -H "Authorization: Bearer <access token>"
+```
+
+Get one from [Sign in](/concepts/auth-and-tokens#signing-in). It lasts 15 minutes; when it runs out you get `401` with `code: "token_expired"`, and swap your refresh token for a new pair. The endpoints under **Public** and the sign-in ones need no token.
+
+"Who can call it" on each page lists the roles allowed. Admins can always call everything. See [Roles](/concepts/roles).
+
+## JSON
+
+- **camelCase** both ways: `tableId`, `balanceDue`, `nextStatuses`.
+- **Money is a number** with up to two decimals, in the restaurant's currency: `1453.83` is ৳1,453.83. The server rounds to the paisa; don't send more decimals.
+- **Times are ISO 8601 with a time zone**: `2026-10-16T20:00:00+06:00` when you send them, UTC like `2026-10-16T14:00:00Z` when you get them back.
+- **Dates** like `dateFrom=2026-10-16` are the restaurant's local dates, both ends included.
+- **`PATCH` changes only what you send.** Leave a field out to keep it.
+
+## Lists
+
+List endpoints take `page`, `size` (up to 100), `search` and `sort` (`sort=-createdAt` for newest first), and answer:
+
+```json
+{ "items": [], "total": 137, "page": 1, "size": 20, "pages": 7 }
+```
+
+Details in [Errors and limits](/concepts/errors-and-limits#lists).
+
+## Errors
+
+Every error has the same shape:
+
+```json
+{ "detail": "The order is already paid", "code": "order_closed" }
+```
+
+Switch on `code`; show `detail` to people. The full list of codes is in [Errors and limits](/concepts/errors-and-limits#every-error-code).
+
+## Live updates
+
+The WebSocket at `/api/v1/live` isn't in this tab, because OpenAPI doesn't describe WebSockets. It has its own page: [Live updates](/concepts/live-updates).
+
+## Trying it
+
+The API serves its own interactive docs at [localhost:8000/docs](http://localhost:8000/docs), where you can sign in with **Authorize** and send real requests to your local copy. This site shows the endpoints but doesn't send requests, so nothing here can touch a real restaurant's data.

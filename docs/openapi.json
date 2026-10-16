@@ -2,21 +2,16 @@
   "openapi": "3.1.0",
   "info": {
     "title": "BSS Restaurant API",
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "description": "The BSS Restaurant API. All routes are under `/api/v1`, JSON is camelCase, and errors always look like `{\"detail\": \"...\", \"code\": \"...\"}`."
   },
-  "servers": [
-    {
-      "url": "http://localhost:8000",
-      "description": "Local"
-    }
-  ],
   "paths": {
     "/api/v1/health": {
       "get": {
         "tags": [
-          "health"
+          "Overview"
         ],
-        "summary": "Health",
+        "summary": "Health check",
         "operationId": "health_api_v1_health_get",
         "responses": {
           "200": {
@@ -29,15 +24,16 @@
               }
             }
           }
-        }
+        },
+        "description": "Whether the API is up and can reach the database. Answers 503 with `database: unreachable` when it can't, after waiting up to 5 seconds for a sleeping database.\n\n**Who can call it:** No sign-in needed."
       }
     },
     "/api/v1/auth/login": {
       "post": {
         "tags": [
-          "auth"
+          "Sign-in"
         ],
-        "summary": "Login",
+        "summary": "Sign in",
         "operationId": "login_api_v1_auth_login_post",
         "requestBody": {
           "content": {
@@ -70,16 +66,17 @@
               }
             }
           }
-        }
+        },
+        "description": "Swaps an email and password for an access token, a refresh token and the user. Limited to 20 attempts a minute per IP and 5 in 5 minutes per account.\n\n**Who can call it:** No sign-in needed."
       }
     },
     "/api/v1/auth/token": {
       "post": {
         "tags": [
-          "auth"
+          "Sign-in"
         ],
-        "summary": "Login form for the docs",
-        "description": "OAuth2 password flow, used by the Authorize button in /docs. Put the email in `username`.",
+        "summary": "Sign in (Swagger form)",
+        "description": "The OAuth2 password form used by the Authorize button in `/docs`. Put the email in `username`. Clients should use **Sign in** instead.\n\n**Who can call it:** No sign-in needed.",
         "operationId": "login_form_api_v1_auth_token_post",
         "requestBody": {
           "content": {
@@ -118,9 +115,9 @@
     "/api/v1/auth/refresh": {
       "post": {
         "tags": [
-          "auth"
+          "Sign-in"
         ],
-        "summary": "Refresh",
+        "summary": "Refresh tokens",
         "operationId": "refresh_api_v1_auth_refresh_post",
         "requestBody": {
           "content": {
@@ -153,15 +150,16 @@
               }
             }
           }
-        }
+        },
+        "description": "Swaps a refresh token for a new pair. Each refresh token works once; using an old one again ends the whole session. Refresh one at a time.\n\n**Who can call it:** No sign-in needed."
       }
     },
     "/api/v1/auth/logout": {
       "post": {
         "tags": [
-          "auth"
+          "Sign-in"
         ],
-        "summary": "Logout",
+        "summary": "Sign out",
         "operationId": "logout_api_v1_auth_logout_post",
         "requestBody": {
           "content": {
@@ -187,15 +185,16 @@
               }
             }
           }
-        }
+        },
+        "description": "Ends the session this refresh token belongs to. Unknown tokens are ignored.\n\n**Who can call it:** No sign-in needed."
       }
     },
     "/api/v1/auth/logout-all": {
       "post": {
         "tags": [
-          "auth"
+          "Sign-in"
         ],
-        "summary": "Logout Everywhere",
+        "summary": "Sign out everywhere",
         "operationId": "logout_everywhere_api_v1_auth_logout_all_post",
         "responses": {
           "204": {
@@ -206,15 +205,16 @@
           {
             "OAuth2PasswordBearer": []
           }
-        ]
+        ],
+        "description": "Ends every session of the signed-in user, on every device.\n\n**Who can call it:** Any signed-in staff member."
       }
     },
     "/api/v1/auth/me": {
       "get": {
         "tags": [
-          "auth"
+          "Sign-in"
         ],
-        "summary": "Me",
+        "summary": "Get my account",
         "operationId": "me_api_v1_auth_me_get",
         "responses": {
           "200": {
@@ -232,13 +232,14 @@
           {
             "OAuth2PasswordBearer": []
           }
-        ]
+        ],
+        "description": "The signed-in user.\n\n**Who can call it:** Any signed-in staff member."
       },
       "patch": {
         "tags": [
-          "auth"
+          "Sign-in"
         ],
-        "summary": "Update Me",
+        "summary": "Update my account",
         "operationId": "update_me_api_v1_auth_me_patch",
         "requestBody": {
           "content": {
@@ -276,16 +277,17 @@
           {
             "OAuth2PasswordBearer": []
           }
-        ]
+        ],
+        "description": "Change your own name and phone number.\n\n**Who can call it:** Any signed-in staff member."
       }
     },
     "/api/v1/auth/me/password": {
       "post": {
         "tags": [
-          "auth"
+          "Sign-in"
         ],
-        "summary": "Change My Password",
-        "description": "Changes the password, signs out all other devices and returns new tokens for this one.",
+        "summary": "Change my password",
+        "description": "Needs the current password. Signs out every other device and returns a new token pair for this one.\n\n**Who can call it:** Any signed-in staff member.",
         "operationId": "change_my_password_api_v1_auth_me_password_post",
         "requestBody": {
           "content": {
@@ -329,9 +331,9 @@
     "/api/v1/public/restaurant": {
       "get": {
         "tags": [
-          "public"
+          "Public"
         ],
-        "summary": "Restaurant",
+        "summary": "Restaurant details",
         "operationId": "restaurant_api_v1_public_restaurant_get",
         "responses": {
           "200": {
@@ -344,16 +346,17 @@
               }
             }
           }
-        }
+        },
+        "description": "Name, contact details, currency, VAT and service charge, and which kinds of ordering and booking are switched on.\n\n**Who can call it:** No sign-in needed. Rate limited per IP."
       }
     },
     "/api/v1/public/menu": {
       "get": {
         "tags": [
-          "public"
+          "Public"
         ],
-        "summary": "Menu",
-        "description": "Restaurant details plus every visible category with its foods.",
+        "summary": "The menu",
+        "description": "Restaurant details and every visible category with its foods, in one call. Sold-out foods are included with `isAvailable: false`.\n\n**Who can call it:** No sign-in needed. Rate limited per IP.",
         "operationId": "menu_api_v1_public_menu_get",
         "responses": {
           "200": {
@@ -372,10 +375,10 @@
     "/api/v1/public/tables/{qr_token}": {
       "get": {
         "tags": [
-          "public"
+          "Public"
         ],
-        "summary": "Table",
-        "description": "The table behind a QR code, so the page can say \"Table 4\".",
+        "summary": "The table behind a QR code",
+        "description": "The table behind a QR code, so the page can say \"Table 4\".\n\n**Who can call it:** No sign-in needed. Rate limited per IP.",
         "operationId": "table_api_v1_public_tables__qr_token__get",
         "parameters": [
           {
@@ -415,10 +418,10 @@
     "/api/v1/public/tables/{qr_token}/orders": {
       "post": {
         "tags": [
-          "public"
+          "Public"
         ],
-        "summary": "Order From Table",
-        "description": "Orders from the QR code on the table. The order waits as pending until a waiter\nconfirms it, keep the `trackingCode` to follow it.",
+        "summary": "Order from a table",
+        "description": "The order waits as pending until a waiter confirms it. At most 3 unconfirmed orders per table. Keep the `trackingCode` to follow it.\n\n**Who can call it:** No sign-in needed. Rate limited per IP.",
         "operationId": "order_from_table_api_v1_public_tables__qr_token__orders_post",
         "parameters": [
           {
@@ -468,10 +471,10 @@
     "/api/v1/public/orders": {
       "post": {
         "tags": [
-          "public"
+          "Public"
         ],
-        "summary": "Order Online",
-        "description": "Takeaway from the website, only when the restaurant has online orders switched on.",
+        "summary": "Order takeaway online",
+        "description": "Needs a name and phone number, and online orders switched on. At most 3 unconfirmed orders per phone number.\n\n**Who can call it:** No sign-in needed. Rate limited per IP.",
         "operationId": "order_online_api_v1_public_orders_post",
         "requestBody": {
           "content": {
@@ -510,10 +513,10 @@
     "/api/v1/public/orders/{tracking_code}": {
       "get": {
         "tags": [
-          "public"
+          "Public"
         ],
-        "summary": "Track Order",
-        "description": "Status, items and bill of an order. Works for any order, staff can hand out the code.",
+        "summary": "Track an order",
+        "description": "Status, items and bill of an order. Works for any order, staff can hand out the code.\n\n**Who can call it:** No sign-in needed. Rate limited per IP.",
         "operationId": "track_order_api_v1_public_orders__tracking_code__get",
         "parameters": [
           {
@@ -553,10 +556,10 @@
     "/api/v1/public/orders/{tracking_code}/cancel": {
       "post": {
         "tags": [
-          "public"
+          "Public"
         ],
-        "summary": "Cancel Order",
-        "description": "Only while the order is still pending and nothing was paid, see `canCancel`.",
+        "summary": "Cancel an order",
+        "description": "Only while the order is still pending and nothing was paid, see `canCancel`.\n\n**Who can call it:** No sign-in needed. Rate limited per IP.",
         "operationId": "cancel_order_api_v1_public_orders__tracking_code__cancel_post",
         "parameters": [
           {
@@ -596,10 +599,10 @@
     "/api/v1/public/reservations/slots": {
       "get": {
         "tags": [
-          "public"
+          "Public"
         ],
-        "summary": "Booking Slots",
-        "description": "Times a party can book on a day, empty when the day is full or too far ahead.",
+        "summary": "Times to book",
+        "description": "Times a party can book on a day, empty when the day is full or too far ahead.\n\n**Who can call it:** No sign-in needed. Rate limited per IP.",
         "operationId": "booking_slots_api_v1_public_reservations_slots_get",
         "parameters": [
           {
@@ -653,10 +656,10 @@
     "/api/v1/public/reservations": {
       "post": {
         "tags": [
-          "public"
+          "Public"
         ],
-        "summary": "Book Table",
-        "description": "Asks for a table, `status` says whether the restaurant still has to confirm it.\nKeep the `trackingCode` to check on it or cancel.",
+        "summary": "Request a booking",
+        "description": "At least an hour and at most 60 days ahead, inside opening hours, up to 20 people, 3 upcoming bookings per phone number. Keep the `trackingCode`.\n\n**Who can call it:** No sign-in needed. Rate limited per IP.",
         "operationId": "book_table_api_v1_public_reservations_post",
         "requestBody": {
           "content": {
@@ -695,9 +698,9 @@
     "/api/v1/public/reservations/{tracking_code}": {
       "get": {
         "tags": [
-          "public"
+          "Public"
         ],
-        "summary": "Track Booking",
+        "summary": "Track a booking",
         "operationId": "track_booking_api_v1_public_reservations__tracking_code__get",
         "parameters": [
           {
@@ -731,16 +734,17 @@
               }
             }
           }
-        }
+        },
+        "description": "Its status, time and table. `cancelReason` holds the restaurant's note if it was declined or cancelled.\n\n**Who can call it:** No sign-in needed. Rate limited per IP."
       }
     },
     "/api/v1/public/reservations/{tracking_code}/cancel": {
       "post": {
         "tags": [
-          "public"
+          "Public"
         ],
-        "summary": "Cancel Booking",
-        "description": "Until the booking time, see `canCancel`.",
+        "summary": "Cancel a booking",
+        "description": "Until the booking time, see `canCancel`.\n\n**Who can call it:** No sign-in needed. Rate limited per IP.",
         "operationId": "cancel_booking_api_v1_public_reservations__tracking_code__cancel_post",
         "parameters": [
           {
@@ -780,9 +784,9 @@
     "/api/v1/restaurant": {
       "get": {
         "tags": [
-          "restaurant"
+          "Restaurant"
         ],
-        "summary": "Get Restaurant",
+        "summary": "Get settings",
         "operationId": "get_restaurant_api_v1_restaurant_get",
         "responses": {
           "200": {
@@ -800,14 +804,15 @@
           {
             "OAuth2PasswordBearer": []
           }
-        ]
+        ],
+        "description": "Name and details printed on receipts, currency, VAT and service charge, opening hours, and the ordering and booking switches.\n\n**Who can call it:** Any signed-in staff member."
       },
       "patch": {
         "tags": [
-          "restaurant"
+          "Restaurant"
         ],
-        "summary": "Update Restaurant",
-        "description": "Name and contact details for receipts, currency, VAT and service charge.\nNew rates apply to orders placed after the change.",
+        "summary": "Update settings",
+        "description": "Send only what changes. New VAT and service charge rates apply to orders placed after the change.\n\n**Who can call it:** Admins and managers.",
         "operationId": "update_restaurant_api_v1_restaurant_patch",
         "requestBody": {
           "content": {
@@ -851,9 +856,9 @@
     "/api/v1/users": {
       "get": {
         "tags": [
-          "users"
+          "Staff accounts"
         ],
-        "summary": "List Users",
+        "summary": "List accounts",
         "operationId": "list_users_api_v1_users_get",
         "security": [
           {
@@ -973,13 +978,14 @@
               }
             }
           }
-        }
+        },
+        "description": "Every sign-in, filter by role or active.\n\n**Who can call it:** Admins and managers."
       },
       "post": {
         "tags": [
-          "users"
+          "Staff accounts"
         ],
-        "summary": "Create User",
+        "summary": "Create an account",
         "operationId": "create_user_api_v1_users_post",
         "security": [
           {
@@ -1017,15 +1023,16 @@
               }
             }
           }
-        }
+        },
+        "description": "Only admins create admin and manager accounts.\n\n**Who can call it:** Admins and managers."
       }
     },
     "/api/v1/users/{user_id}": {
       "get": {
         "tags": [
-          "users"
+          "Staff accounts"
         ],
-        "summary": "Get User",
+        "summary": "Get an account",
         "operationId": "get_user_api_v1_users__user_id__get",
         "security": [
           {
@@ -1064,13 +1071,14 @@
               }
             }
           }
-        }
+        },
+        "description": "**Who can call it:** Admins and managers."
       },
       "patch": {
         "tags": [
-          "users"
+          "Staff accounts"
         ],
-        "summary": "Update User",
+        "summary": "Update an account",
         "operationId": "update_user_api_v1_users__user_id__patch",
         "security": [
           {
@@ -1119,14 +1127,15 @@
               }
             }
           }
-        }
+        },
+        "description": "Change the name, phone, role or active flag. Nobody can change their own role or deactivate themselves, and the last active admin stays.\n\n**Who can call it:** Admins and managers."
       },
       "delete": {
         "tags": [
-          "users"
+          "Staff accounts"
         ],
-        "summary": "Deactivate User",
-        "description": "Users are never hard deleted, orders and payments keep pointing at them.",
+        "summary": "Deactivate an account",
+        "description": "Users are never hard deleted, orders and payments keep pointing at them.\n\n**Who can call it:** Admins and managers.",
         "operationId": "deactivate_user_api_v1_users__user_id__delete",
         "security": [
           {
@@ -1164,9 +1173,9 @@
     "/api/v1/users/{user_id}/reset-password": {
       "post": {
         "tags": [
-          "users"
+          "Staff accounts"
         ],
-        "summary": "Reset Password",
+        "summary": "Reset a password",
         "operationId": "reset_password_api_v1_users__user_id__reset_password_post",
         "security": [
           {
@@ -1208,16 +1217,17 @@
               }
             }
           }
-        }
+        },
+        "description": "Sets a new password and signs the account out everywhere.\n\n**Who can call it:** Admins and managers."
       }
     },
     "/api/v1/uploads/images": {
       "post": {
         "tags": [
-          "uploads"
+          "Uploads"
         ],
-        "summary": "Upload Image",
-        "description": "Upload first, then send the returned `key` as `imageKey` when creating or updating\na food, category, table or profile. Images are resized and converted to webp.",
+        "summary": "Upload an image",
+        "description": "Send the file as a form with its `folder`. Then send the returned `key` as `imageKey` (or `receiptKey`) when creating or updating the thing it belongs to. Images are checked, resized to 1600 px and stored as WebP. At most `MAX_UPLOAD_MB`, 5 MB by default.\n\n**Who can call it:** Any signed-in staff member.",
         "operationId": "upload_image_api_v1_uploads_images_post",
         "requestBody": {
           "content": {
@@ -1261,9 +1271,9 @@
     "/api/v1/categories": {
       "get": {
         "tags": [
-          "menu"
+          "Menu"
         ],
-        "summary": "List Categories",
+        "summary": "List categories",
         "operationId": "list_categories_api_v1_categories_get",
         "security": [
           {
@@ -1307,13 +1317,14 @@
               }
             }
           }
-        }
+        },
+        "description": "In menu order (`sortOrder`), each with its number of foods. Hidden ones only with `includeInactive=true`. Not paged.\n\n**Who can call it:** Any signed-in staff member."
       },
       "post": {
         "tags": [
-          "menu"
+          "Menu"
         ],
-        "summary": "Create Category",
+        "summary": "Create a category",
         "operationId": "create_category_api_v1_categories_post",
         "security": [
           {
@@ -1351,15 +1362,16 @@
               }
             }
           }
-        }
+        },
+        "description": "Names are unique, ignoring case.\n\n**Who can call it:** Admins and managers."
       }
     },
     "/api/v1/categories/{category_id}": {
       "get": {
         "tags": [
-          "menu"
+          "Menu"
         ],
-        "summary": "Get Category",
+        "summary": "Get a category",
         "operationId": "get_category_api_v1_categories__category_id__get",
         "security": [
           {
@@ -1398,13 +1410,14 @@
               }
             }
           }
-        }
+        },
+        "description": "**Who can call it:** Any signed-in staff member."
       },
       "patch": {
         "tags": [
-          "menu"
+          "Menu"
         ],
-        "summary": "Update Category",
+        "summary": "Update a category",
         "operationId": "update_category_api_v1_categories__category_id__patch",
         "security": [
           {
@@ -1453,13 +1466,14 @@
               }
             }
           }
-        }
+        },
+        "description": "Send only what changes. `isActive: false` hides it and its foods from the public menu.\n\n**Who can call it:** Admins and managers."
       },
       "delete": {
         "tags": [
-          "menu"
+          "Menu"
         ],
-        "summary": "Delete Category",
+        "summary": "Delete a category",
         "operationId": "delete_category_api_v1_categories__category_id__delete",
         "security": [
           {
@@ -1491,15 +1505,16 @@
               }
             }
           }
-        }
+        },
+        "description": "Only when it has no foods (`409 category_not_empty`). Hide it instead to keep its foods.\n\n**Who can call it:** Admins and managers."
       }
     },
     "/api/v1/foods": {
       "get": {
         "tags": [
-          "menu"
+          "Menu"
         ],
-        "summary": "List Foods",
+        "summary": "List foods",
         "operationId": "list_foods_api_v1_foods_get",
         "security": [
           {
@@ -1635,13 +1650,14 @@
               }
             }
           }
-        }
+        },
+        "description": "Filter by category, availability or featured, and search by name. Deleted foods are left out.\n\n**Who can call it:** Any signed-in staff member."
       },
       "post": {
         "tags": [
-          "menu"
+          "Menu"
         ],
-        "summary": "Create Food",
+        "summary": "Create a food",
         "operationId": "create_food_api_v1_foods_post",
         "security": [
           {
@@ -1679,15 +1695,16 @@
               }
             }
           }
-        }
+        },
+        "description": "The final price is always worked out by the server from `price` and the discount.\n\n**Who can call it:** Admins and managers."
       }
     },
     "/api/v1/foods/{food_id}": {
       "get": {
         "tags": [
-          "menu"
+          "Menu"
         ],
-        "summary": "Get Food",
+        "summary": "Get a food",
         "operationId": "get_food_api_v1_foods__food_id__get",
         "security": [
           {
@@ -1726,13 +1743,14 @@
               }
             }
           }
-        }
+        },
+        "description": "**Who can call it:** Any signed-in staff member."
       },
       "patch": {
         "tags": [
-          "menu"
+          "Menu"
         ],
-        "summary": "Update Food",
+        "summary": "Update a food",
         "operationId": "update_food_api_v1_foods__food_id__patch",
         "security": [
           {
@@ -1781,13 +1799,14 @@
               }
             }
           }
-        }
+        },
+        "description": "Send only what changes. Orders already placed keep the price they were sold at.\n\n**Who can call it:** Admins and managers."
       },
       "delete": {
         "tags": [
-          "menu"
+          "Menu"
         ],
-        "summary": "Delete Food",
+        "summary": "Delete a food",
         "operationId": "delete_food_api_v1_foods__food_id__delete",
         "security": [
           {
@@ -1819,16 +1838,17 @@
               }
             }
           }
-        }
+        },
+        "description": "A soft delete: it leaves the menu, and old orders still show it.\n\n**Who can call it:** Admins and managers."
       }
     },
     "/api/v1/foods/{food_id}/availability": {
       "put": {
         "tags": [
-          "menu"
+          "Menu"
         ],
-        "summary": "Set Availability",
-        "description": "Quick sold out toggle, chefs can use this too.",
+        "summary": "Mark sold out or available",
+        "description": "The quick sold-out switch. Chefs can use it too.\n\n**Who can call it:** Admins, managers and chefs.",
         "operationId": "set_availability_api_v1_foods__food_id__availability_put",
         "security": [
           {
@@ -1883,9 +1903,9 @@
     "/api/v1/tables": {
       "get": {
         "tags": [
-          "tables"
+          "Tables"
         ],
-        "summary": "List Tables",
+        "summary": "List tables",
         "operationId": "list_tables_api_v1_tables_get",
         "security": [
           {
@@ -2022,13 +2042,14 @@
               }
             }
           }
-        }
+        },
+        "description": "Filter by active, minimum seats or the employee serving it. `isOccupied` is true while the table has an order that isn't paid or cancelled.\n\n**Who can call it:** Any signed-in staff member."
       },
       "post": {
         "tags": [
-          "tables"
+          "Tables"
         ],
-        "summary": "Create Table",
+        "summary": "Create a table",
         "operationId": "create_table_api_v1_tables_post",
         "security": [
           {
@@ -2066,15 +2087,16 @@
               }
             }
           }
-        }
+        },
+        "description": "Table numbers are unique. A QR token is made for it.\n\n**Who can call it:** Admins and managers."
       }
     },
     "/api/v1/tables/{table_id}": {
       "get": {
         "tags": [
-          "tables"
+          "Tables"
         ],
-        "summary": "Get Table",
+        "summary": "Get a table",
         "operationId": "get_table_api_v1_tables__table_id__get",
         "security": [
           {
@@ -2113,13 +2135,14 @@
               }
             }
           }
-        }
+        },
+        "description": "**Who can call it:** Any signed-in staff member."
       },
       "patch": {
         "tags": [
-          "tables"
+          "Tables"
         ],
-        "summary": "Update Table",
+        "summary": "Update a table",
         "operationId": "update_table_api_v1_tables__table_id__patch",
         "security": [
           {
@@ -2168,13 +2191,14 @@
               }
             }
           }
-        }
+        },
+        "description": "Send only what changes. `isActive: false` takes it out of use.\n\n**Who can call it:** Admins and managers."
       },
       "delete": {
         "tags": [
-          "tables"
+          "Tables"
         ],
-        "summary": "Delete Table",
+        "summary": "Delete a table",
         "operationId": "delete_table_api_v1_tables__table_id__delete",
         "security": [
           {
@@ -2206,16 +2230,17 @@
               }
             }
           }
-        }
+        },
+        "description": "Only a table that never had an order or a booking (`409 table_in_use`). Switch it off instead.\n\n**Who can call it:** Admins and managers."
       }
     },
     "/api/v1/tables/{table_id}/employees": {
       "put": {
         "tags": [
-          "tables"
+          "Tables"
         ],
-        "summary": "Set Table Employees",
-        "description": "Sets which employees serve this table. Send the full list, an empty list clears it.",
+        "summary": "Set who serves a table",
+        "description": "Sets which employees serve this table. Send the full list, an empty list clears it.\n\n**Who can call it:** Admins and managers.",
         "operationId": "set_table_employees_api_v1_tables__table_id__employees_put",
         "security": [
           {
@@ -2270,9 +2295,9 @@
     "/api/v1/tables/{table_id}/qr-token": {
       "post": {
         "tags": [
-          "tables"
+          "Tables"
         ],
-        "summary": "Regenerate Qr Token",
+        "summary": "Make a new QR code",
         "operationId": "regenerate_qr_token_api_v1_tables__table_id__qr_token_post",
         "security": [
           {
@@ -2311,15 +2336,16 @@
               }
             }
           }
-        }
+        },
+        "description": "Gives the table a new QR token. The old code stops working at once, so print the new one.\n\n**Who can call it:** Admins and managers."
       }
     },
     "/api/v1/employees": {
       "get": {
         "tags": [
-          "employees"
+          "Employees"
         ],
-        "summary": "List Employees",
+        "summary": "List employees",
         "operationId": "list_employees_api_v1_employees_get",
         "security": [
           {
@@ -2456,14 +2482,15 @@
               }
             }
           }
-        }
+        },
+        "description": "**Who can call it:** Admins and managers."
       },
       "post": {
         "tags": [
-          "employees"
+          "Employees"
         ],
-        "summary": "Create Employee",
-        "description": "Pass `account` to create a login for the employee in the same request.",
+        "summary": "Create an employee",
+        "description": "Pass `account` to create a login for the employee in the same request.\n\n**Who can call it:** Admins and managers.",
         "operationId": "create_employee_api_v1_employees_post",
         "security": [
           {
@@ -2507,9 +2534,9 @@
     "/api/v1/employees/{employee_id}": {
       "get": {
         "tags": [
-          "employees"
+          "Employees"
         ],
-        "summary": "Get Employee",
+        "summary": "Get an employee",
         "operationId": "get_employee_api_v1_employees__employee_id__get",
         "security": [
           {
@@ -2548,13 +2575,14 @@
               }
             }
           }
-        }
+        },
+        "description": "**Who can call it:** Admins and managers."
       },
       "patch": {
         "tags": [
-          "employees"
+          "Employees"
         ],
-        "summary": "Update Employee",
+        "summary": "Update an employee",
         "operationId": "update_employee_api_v1_employees__employee_id__patch",
         "security": [
           {
@@ -2603,14 +2631,15 @@
               }
             }
           }
-        }
+        },
+        "description": "Send only what changes.\n\n**Who can call it:** Admins and managers."
       },
       "delete": {
         "tags": [
-          "employees"
+          "Employees"
         ],
-        "summary": "Deactivate Employee",
-        "description": "Marks the employee inactive and disables their login, nothing is deleted.",
+        "summary": "Mark an employee as left",
+        "description": "Marks the employee inactive and disables their login, nothing is deleted.\n\n**Who can call it:** Admins and managers.",
         "operationId": "deactivate_employee_api_v1_employees__employee_id__delete",
         "security": [
           {
@@ -2648,9 +2677,9 @@
     "/api/v1/employees/{employee_id}/account": {
       "post": {
         "tags": [
-          "employees"
+          "Employees"
         ],
-        "summary": "Create Account",
+        "summary": "Give an employee a sign-in",
         "operationId": "create_account_api_v1_employees__employee_id__account_post",
         "security": [
           {
@@ -2699,15 +2728,16 @@
               }
             }
           }
-        }
+        },
+        "description": "Creates a login for an employee who doesn't have one, using their email.\n\n**Who can call it:** Admins and managers."
       }
     },
     "/api/v1/orders": {
       "get": {
         "tags": [
-          "orders"
+          "Orders"
         ],
-        "summary": "List Orders",
+        "summary": "List orders",
         "operationId": "list_orders_api_v1_orders_get",
         "security": [
           {
@@ -2937,13 +2967,14 @@
               }
             }
           }
-        }
+        },
+        "description": "Filter by status, source, type, table, waiter and restaurant dates. `?source=qr&source=online&status=pending` is the incoming list.\n\n**Who can call it:** Any signed-in staff member."
       },
       "post": {
         "tags": [
-          "orders"
+          "Orders"
         ],
-        "summary": "Create Order",
+        "summary": "Place an order",
         "operationId": "create_order_api_v1_orders_post",
         "security": [
           {
@@ -2981,15 +3012,16 @@
               }
             }
           }
-        }
+        },
+        "description": "Send only what was ordered. Prices, discounts, service charge, VAT and the order number all come from the server.\n\n**Who can call it:** Admins, managers, waiters and cashiers."
       }
     },
     "/api/v1/orders/{order_id}": {
       "get": {
         "tags": [
-          "orders"
+          "Orders"
         ],
-        "summary": "Get Order",
+        "summary": "Get an order",
         "operationId": "get_order_api_v1_orders__order_id__get",
         "security": [
           {
@@ -3028,13 +3060,14 @@
               }
             }
           }
-        }
+        },
+        "description": "The whole order, with its items, history and payments.\n\n**Who can call it:** Any signed-in staff member."
       },
       "patch": {
         "tags": [
-          "orders"
+          "Orders"
         ],
-        "summary": "Update Order",
+        "summary": "Update an order",
         "operationId": "update_order_api_v1_orders__order_id__patch",
         "security": [
           {
@@ -3083,16 +3116,17 @@
               }
             }
           }
-        }
+        },
+        "description": "Change the table, waiter, customer details or notes of an open order.\n\n**Who can call it:** Admins, managers, waiters and cashiers."
       }
     },
     "/api/v1/orders/{order_id}/items": {
       "put": {
         "tags": [
-          "orders"
+          "Orders"
         ],
-        "summary": "Replace Items",
-        "description": "Replaces all items, only before the kitchen starts preparing.",
+        "summary": "Replace the items",
+        "description": "Replaces every line, only while the order is pending or confirmed.\n\n**Who can call it:** Admins, managers, waiters and cashiers.",
         "operationId": "replace_items_api_v1_orders__order_id__items_put",
         "security": [
           {
@@ -3145,10 +3179,10 @@
       },
       "post": {
         "tags": [
-          "orders"
+          "Orders"
         ],
-        "summary": "Add Items",
-        "description": "Adds items to an open order, works while it's being prepared too.",
+        "summary": "Add items",
+        "description": "Adds new lines, also while the kitchen is cooking. Lines already ordered keep their price.\n\n**Who can call it:** Admins, managers, waiters and cashiers.",
         "operationId": "add_items_api_v1_orders__order_id__items_post",
         "security": [
           {
@@ -3203,10 +3237,10 @@
     "/api/v1/orders/{order_id}/status": {
       "post": {
         "tags": [
-          "orders"
+          "Orders"
         ],
-        "summary": "Change Status",
-        "description": "Moves the order along: pending > confirmed > preparing > ready > served > paid.\nPending, confirmed and preparing orders can be cancelled with a reason.\nEach step is limited to the roles that do it in real life (chefs mark food ready, etc).",
+        "summary": "Move an order",
+        "description": "pending → confirmed → preparing → ready → served. Pending, confirmed and preparing orders can be cancelled with a reason. `paid` is set by itself when the bill is settled. Each move has its own roles: see the order's `nextStatuses`.\n\n**Who can call it:** Any signed-in staff member.",
         "operationId": "change_status_api_v1_orders__order_id__status_post",
         "security": [
           {
@@ -3261,10 +3295,10 @@
     "/api/v1/orders/{order_id}/payments": {
       "post": {
         "tags": [
-          "payments"
+          "Payments"
         ],
-        "summary": "Add Payment",
-        "description": "Takes money for an order, leave out `amount` to pay what's left.\n\nA split bill is just several payments. Once everything is paid a served order\nbecomes paid by itself, an order paid before serving closes when it's served.",
+        "summary": "Take a payment",
+        "description": "Leave out `amount` to pay what's left. For cash, `tendered` works out the change. Mobile payments need the transaction ID as `reference`. A split bill is several payments; a served order becomes paid when nothing is left.\n\n**Who can call it:** Admins, managers and cashiers.",
         "operationId": "add_payment_api_v1_orders__order_id__payments_post",
         "security": [
           {
@@ -3319,10 +3353,10 @@
     "/api/v1/orders/{order_id}/refunds": {
       "post": {
         "tags": [
-          "payments"
+          "Payments"
         ],
-        "summary": "Add Refund",
-        "description": "Gives money back, at most what was paid. Managers only.\n\nAlso needed before cancelling an order that was already (partly) paid.",
+        "summary": "Give a refund",
+        "description": "At most what was paid, with a reason. A paid order stays paid. Also needed before cancelling an order that holds money.\n\n**Who can call it:** Admins and managers.",
         "operationId": "add_refund_api_v1_orders__order_id__refunds_post",
         "security": [
           {
@@ -3377,10 +3411,10 @@
     "/api/v1/orders/{order_id}/receipt": {
       "get": {
         "tags": [
-          "payments"
+          "Payments"
         ],
-        "summary": "Receipt",
-        "description": "Printable bill (open orders) or receipt (paid orders) as html, sized for 80mm printers.\n`print=true` opens the print dialog as soon as it loads.",
+        "summary": "Print the bill or receipt",
+        "description": "HTML sized for 80 mm printers: a bill while the order is open, a receipt once it's paid. `print=true` opens the print dialog when it loads.\n\n**Who can call it:** Any signed-in staff member.",
         "operationId": "receipt_api_v1_orders__order_id__receipt_get",
         "security": [
           {
@@ -3435,10 +3469,10 @@
     "/api/v1/reservations": {
       "get": {
         "tags": [
-          "reservations"
+          "Reservations"
         ],
-        "summary": "List Reservations",
-        "description": "Sorted by booking time, filter with `dateFrom`/`dateTo` for a day's bookings.",
+        "summary": "List bookings",
+        "description": "Sorted by booking time, filter with `dateFrom`/`dateTo` for a day's bookings.\n\n**Who can call it:** Any signed-in staff member.",
         "operationId": "list_reservations_api_v1_reservations_get",
         "security": [
           {
@@ -3619,10 +3653,10 @@
       },
       "post": {
         "tags": [
-          "reservations"
+          "Reservations"
         ],
-        "summary": "Create Reservation",
-        "description": "Books a table, confirmed straight away. Without `tableId` the smallest free table\nthat fits is picked.",
+        "summary": "Book a table",
+        "description": "Books a table, confirmed straight away. Without `tableId` the smallest free table\nthat fits is picked.\n\n**Who can call it:** Admins, managers, waiters and cashiers.",
         "operationId": "create_reservation_api_v1_reservations_post",
         "security": [
           {
@@ -3666,10 +3700,10 @@
     "/api/v1/reservations/availability": {
       "get": {
         "tags": [
-          "reservations"
+          "Reservations"
         ],
-        "summary": "Availability",
-        "description": "Tables free for a party at a given time.",
+        "summary": "Find free tables",
+        "description": "Tables free for a party at a time, smallest first. Opening hours aren't checked.\n\n**Who can call it:** Any signed-in staff member.",
         "operationId": "availability_api_v1_reservations_availability_get",
         "security": [
           {
@@ -3762,9 +3796,9 @@
     "/api/v1/reservations/{reservation_id}": {
       "get": {
         "tags": [
-          "reservations"
+          "Reservations"
         ],
-        "summary": "Get Reservation",
+        "summary": "Get a booking",
         "operationId": "get_reservation_api_v1_reservations__reservation_id__get",
         "security": [
           {
@@ -3803,14 +3837,15 @@
               }
             }
           }
-        }
+        },
+        "description": "**Who can call it:** Any signed-in staff member."
       },
       "patch": {
         "tags": [
-          "reservations"
+          "Reservations"
         ],
-        "summary": "Update Reservation",
-        "description": "Move a booking or change the party size, the table has to fit the new time.",
+        "summary": "Change a booking",
+        "description": "While it's requested or confirmed. A confirmed booking keeps its table, which has to fit the new time and size.\n\n**Who can call it:** Admins, managers, waiters and cashiers.",
         "operationId": "update_reservation_api_v1_reservations__reservation_id__patch",
         "security": [
           {
@@ -3865,10 +3900,10 @@
     "/api/v1/reservations/{reservation_id}/status": {
       "post": {
         "tags": [
-          "reservations"
+          "Reservations"
         ],
-        "summary": "Change Status",
-        "description": "requested > confirmed (or declined) > seated > completed. Confirmed bookings can\nalso be cancelled, or marked no show once the time has passed.",
+        "summary": "Move a booking",
+        "description": "requested → confirmed or declined, confirmed → seated, no-show or cancelled, seated → completed. Cancelling and declining need a `note`, which the customer sees.\n\n**Who can call it:** Admins, managers, waiters and cashiers.",
         "operationId": "change_status_api_v1_reservations__reservation_id__status_post",
         "security": [
           {
@@ -3923,9 +3958,9 @@
     "/api/v1/expenses": {
       "get": {
         "tags": [
-          "expenses"
+          "Expenses"
         ],
-        "summary": "List Expenses",
+        "summary": "List expenses",
         "operationId": "list_expenses_api_v1_expenses_get",
         "security": [
           {
@@ -4106,13 +4141,14 @@
               }
             }
           }
-        }
+        },
+        "description": "Filter by category, date range and amount.\n\n**Who can call it:** Admins, managers and cashiers."
       },
       "post": {
         "tags": [
-          "expenses"
+          "Expenses"
         ],
-        "summary": "Create Expense",
+        "summary": "Add an expense",
         "operationId": "create_expense_api_v1_expenses_post",
         "security": [
           {
@@ -4150,15 +4186,16 @@
               }
             }
           }
-        }
+        },
+        "description": "With an optional receipt photo as `receiptKey`. Dates can't be in the future.\n\n**Who can call it:** Admins, managers and cashiers."
       }
     },
     "/api/v1/expenses/{expense_id}": {
       "get": {
         "tags": [
-          "expenses"
+          "Expenses"
         ],
-        "summary": "Get Expense",
+        "summary": "Get an expense",
         "operationId": "get_expense_api_v1_expenses__expense_id__get",
         "security": [
           {
@@ -4197,13 +4234,14 @@
               }
             }
           }
-        }
+        },
+        "description": "**Who can call it:** Admins, managers and cashiers."
       },
       "patch": {
         "tags": [
-          "expenses"
+          "Expenses"
         ],
-        "summary": "Update Expense",
+        "summary": "Update an expense",
         "operationId": "update_expense_api_v1_expenses__expense_id__patch",
         "security": [
           {
@@ -4252,13 +4290,14 @@
               }
             }
           }
-        }
+        },
+        "description": "Send only what changes.\n\n**Who can call it:** Admins, managers and cashiers."
       },
       "delete": {
         "tags": [
-          "expenses"
+          "Expenses"
         ],
-        "summary": "Delete Expense",
+        "summary": "Delete an expense",
         "operationId": "delete_expense_api_v1_expenses__expense_id__delete",
         "security": [
           {
@@ -4290,15 +4329,16 @@
               }
             }
           }
-        }
+        },
+        "description": "**Who can call it:** Admins and managers."
       }
     },
     "/api/v1/dashboard": {
       "get": {
         "tags": [
-          "reports"
+          "Dashboard and reports"
         ],
-        "summary": "Get Dashboard",
+        "summary": "Get the dashboard",
         "operationId": "get_dashboard_api_v1_dashboard_get",
         "responses": {
           "200": {
@@ -4316,16 +4356,17 @@
           {
             "OAuth2PasswordBearer": []
           }
-        ]
+        ],
+        "description": "Today, this month, this year and all time, open orders by status, tables, today's bookings, the latest orders and this month's best sellers. Money counts paid orders only, on the day they were paid.\n\n**Who can call it:** Admins, managers and cashiers."
       }
     },
     "/api/v1/reports/sales": {
       "get": {
         "tags": [
-          "reports"
+          "Dashboard and reports"
         ],
-        "summary": "Sales",
-        "description": "Paid orders against expenses, one row per day, week, month or year.",
+        "summary": "Sales and profit",
+        "description": "Paid orders against expenses, one row per day, week, month or year.\n\n**Who can call it:** Admins and managers.",
         "operationId": "sales_api_v1_reports_sales_get",
         "security": [
           {
@@ -4404,9 +4445,9 @@
     "/api/v1/reports/top-foods": {
       "get": {
         "tags": [
-          "reports"
+          "Dashboard and reports"
         ],
-        "summary": "Top Foods",
+        "summary": "Best sellers",
         "operationId": "top_foods_api_v1_reports_top_foods_get",
         "security": [
           {
@@ -4498,16 +4539,17 @@
               }
             }
           }
-        }
+        },
+        "description": "Foods by quantity sold in paid orders. `limit` up to 50.\n\n**Who can call it:** Admins and managers."
       }
     },
     "/api/v1/reports/expenses": {
       "get": {
         "tags": [
-          "reports"
+          "Dashboard and reports"
         ],
-        "summary": "Expenses",
-        "description": "Where the money went, per category.",
+        "summary": "Expenses by category",
+        "description": "Where the money went, per category.\n\n**Who can call it:** Admins and managers.",
         "operationId": "expenses_api_v1_reports_expenses_get",
         "security": [
           {
@@ -4577,10 +4619,10 @@
     "/api/v1/reports/staff": {
       "get": {
         "tags": [
-          "reports"
+          "Dashboard and reports"
         ],
-        "summary": "Staff",
-        "description": "How much each waiter sold, best first.",
+        "summary": "Sales by waiter",
+        "description": "How much each waiter sold, best first.\n\n**Who can call it:** Admins and managers.",
         "operationId": "staff_api_v1_reports_staff_get",
         "security": [
           {
@@ -4650,9 +4692,9 @@
     "/api/v1/reports/sales.csv": {
       "get": {
         "tags": [
-          "reports"
+          "Dashboard and reports"
         ],
-        "summary": "Sales Csv",
+        "summary": "Sales and profit (CSV)",
         "operationId": "sales_csv_api_v1_reports_sales_csv_get",
         "security": [
           {
@@ -4718,15 +4760,16 @@
               }
             }
           }
-        }
+        },
+        "description": "The sales report as a CSV file for Excel.\n\n**Who can call it:** Admins and managers."
       }
     },
     "/api/v1/reports/top-foods.csv": {
       "get": {
         "tags": [
-          "reports"
+          "Dashboard and reports"
         ],
-        "summary": "Top Foods Csv",
+        "summary": "Best sellers (CSV)",
         "operationId": "top_foods_csv_api_v1_reports_top_foods_csv_get",
         "security": [
           {
@@ -4811,15 +4854,16 @@
               }
             }
           }
-        }
+        },
+        "description": "The best sellers report as a CSV file for Excel.\n\n**Who can call it:** Admins and managers."
       }
     },
     "/api/v1/reports/expenses.csv": {
       "get": {
         "tags": [
-          "reports"
+          "Dashboard and reports"
         ],
-        "summary": "Expenses Csv",
+        "summary": "Expenses by category (CSV)",
         "operationId": "expenses_csv_api_v1_reports_expenses_csv_get",
         "security": [
           {
@@ -4876,15 +4920,16 @@
               }
             }
           }
-        }
+        },
+        "description": "The expenses report as a CSV file for Excel.\n\n**Who can call it:** Admins and managers."
       }
     },
     "/api/v1/reports/staff.csv": {
       "get": {
         "tags": [
-          "reports"
+          "Dashboard and reports"
         ],
-        "summary": "Staff Csv",
+        "summary": "Sales by waiter (CSV)",
         "operationId": "staff_csv_api_v1_reports_staff_csv_get",
         "security": [
           {
@@ -4941,16 +4986,17 @@
               }
             }
           }
-        }
+        },
+        "description": "The staff report as a CSV file for Excel.\n\n**Who can call it:** Admins and managers."
       }
     },
     "/api/v1/reports/orders.csv": {
       "get": {
         "tags": [
-          "reports"
+          "Dashboard and reports"
         ],
-        "summary": "Orders Csv",
-        "description": "Paid and cancelled orders one per line, times are in restaurant time.",
+        "summary": "Every order (CSV)",
+        "description": "Paid and cancelled orders one per line, times are in restaurant time.\n\n**Who can call it:** Admins and managers.",
         "operationId": "orders_csv_api_v1_reports_orders_csv_get",
         "security": [
           {
@@ -5157,8 +5203,8 @@
           },
           "sortOrder": {
             "type": "integer",
-            "maximum": 10000,
-            "minimum": 0,
+            "maximum": 10000.0,
+            "minimum": 0.0,
             "title": "Sortorder",
             "default": 0
           },
@@ -5286,8 +5332,8 @@
             "anyOf": [
               {
                 "type": "integer",
-                "maximum": 10000,
-                "minimum": 0
+                "maximum": 10000.0,
+                "minimum": 0.0
               },
               {
                 "type": "null"
@@ -5593,7 +5639,7 @@
             "anyOf": [
               {
                 "type": "number",
-                "minimum": 0
+                "minimum": 0.0
               },
               {
                 "type": "string",
@@ -6007,7 +6053,7 @@
             "anyOf": [
               {
                 "type": "number",
-                "minimum": 0
+                "minimum": 0.0
               },
               {
                 "type": "string",
@@ -6063,7 +6109,7 @@
             "anyOf": [
               {
                 "type": "number",
-                "exclusiveMinimum": 0
+                "exclusiveMinimum": 0.0
               },
               {
                 "type": "string",
@@ -6304,7 +6350,7 @@
             "anyOf": [
               {
                 "type": "number",
-                "exclusiveMinimum": 0
+                "exclusiveMinimum": 0.0
               },
               {
                 "type": "string",
@@ -6433,7 +6479,7 @@
             "anyOf": [
               {
                 "type": "number",
-                "minimum": 0
+                "minimum": 0.0
               },
               {
                 "type": "string",
@@ -6450,7 +6496,7 @@
             "anyOf": [
               {
                 "type": "number",
-                "minimum": 0
+                "minimum": 0.0
               },
               {
                 "type": "string",
@@ -6474,8 +6520,8 @@
             "anyOf": [
               {
                 "type": "integer",
-                "maximum": 300,
-                "minimum": 1
+                "maximum": 300.0,
+                "minimum": 1.0
               },
               {
                 "type": "null"
@@ -6656,7 +6702,7 @@
             "anyOf": [
               {
                 "type": "number",
-                "minimum": 0
+                "minimum": 0.0
               },
               {
                 "type": "string",
@@ -6682,7 +6728,7 @@
             "anyOf": [
               {
                 "type": "number",
-                "minimum": 0
+                "minimum": 0.0
               },
               {
                 "type": "string",
@@ -6720,8 +6766,8 @@
             "anyOf": [
               {
                 "type": "integer",
-                "maximum": 300,
-                "minimum": 1
+                "maximum": 300.0,
+                "minimum": 1.0
               },
               {
                 "type": "null"
@@ -7476,8 +7522,8 @@
           },
           "quantity": {
             "type": "integer",
-            "maximum": 100,
-            "minimum": 1,
+            "maximum": 100.0,
+            "minimum": 1.0,
             "title": "Quantity"
           },
           "notes": {
@@ -8178,7 +8224,7 @@
             "anyOf": [
               {
                 "type": "number",
-                "exclusiveMinimum": 0
+                "exclusiveMinimum": 0.0
               },
               {
                 "type": "string",
@@ -8195,7 +8241,7 @@
             "anyOf": [
               {
                 "type": "number",
-                "exclusiveMinimum": 0
+                "exclusiveMinimum": 0.0
               },
               {
                 "type": "string",
@@ -8770,8 +8816,8 @@
           },
           "partySize": {
             "type": "integer",
-            "maximum": 20,
-            "minimum": 1,
+            "maximum": 20.0,
+            "minimum": 1.0,
             "title": "Partysize"
           },
           "customerName": {
@@ -9037,7 +9083,7 @@
             "anyOf": [
               {
                 "type": "number",
-                "exclusiveMinimum": 0
+                "exclusiveMinimum": 0.0
               },
               {
                 "type": "string",
@@ -9085,8 +9131,8 @@
             "anyOf": [
               {
                 "type": "integer",
-                "maximum": 480,
-                "minimum": 15
+                "maximum": 480.0,
+                "minimum": 15.0
               },
               {
                 "type": "null"
@@ -9097,8 +9143,8 @@
           },
           "partySize": {
             "type": "integer",
-            "maximum": 50,
-            "minimum": 1,
+            "maximum": 50.0,
+            "minimum": 1.0,
             "title": "Partysize"
           },
           "tableId": {
@@ -9396,8 +9442,8 @@
             "anyOf": [
               {
                 "type": "integer",
-                "maximum": 480,
-                "minimum": 15
+                "maximum": 480.0,
+                "minimum": 15.0
               },
               {
                 "type": "null"
@@ -9409,8 +9455,8 @@
             "anyOf": [
               {
                 "type": "integer",
-                "maximum": 50,
-                "minimum": 1
+                "maximum": 50.0,
+                "minimum": 1.0
               },
               {
                 "type": "null"
@@ -9713,8 +9759,8 @@
             "anyOf": [
               {
                 "type": "number",
-                "maximum": 100,
-                "minimum": 0
+                "maximum": 100.0,
+                "minimum": 0.0
               },
               {
                 "type": "string",
@@ -9730,8 +9776,8 @@
             "anyOf": [
               {
                 "type": "number",
-                "maximum": 100,
-                "minimum": 0
+                "maximum": 100.0,
+                "minimum": 0.0
               },
               {
                 "type": "string",
@@ -9807,8 +9853,8 @@
             "anyOf": [
               {
                 "type": "integer",
-                "maximum": 480,
-                "minimum": 15
+                "maximum": 480.0,
+                "minimum": 15.0
               },
               {
                 "type": "null"
@@ -10245,8 +10291,8 @@
           },
           "seats": {
             "type": "integer",
-            "maximum": 50,
-            "minimum": 1,
+            "maximum": 50.0,
+            "minimum": 1.0,
             "title": "Seats"
           },
           "location": {
@@ -10481,8 +10527,8 @@
             "anyOf": [
               {
                 "type": "integer",
-                "maximum": 50,
-                "minimum": 1
+                "maximum": 50.0,
+                "minimum": 1.0
               },
               {
                 "type": "null"
@@ -10917,5 +10963,11 @@
         }
       }
     }
-  }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8000",
+      "description": "Local"
+    }
+  ]
 }
